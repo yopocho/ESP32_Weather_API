@@ -3017,9 +3017,9 @@
       (rotate (xyz 0 0 0))
     )
     (model "C:/Users/niels/Downloads/esp32_dev_kit_v1_asm.stp"
-      (offset (xyz 12.5 -50.5 9.5))
+      (offset (xyz 12.5 -8 10))
       (scale (xyz 1 1 1))
-      (rotate (xyz 0 0 0))
+      (rotate (xyz 0 0 180))
     )
   )
 
