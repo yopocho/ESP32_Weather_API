@@ -3444,7 +3444,7 @@
 
   (footprint "LOGO" (layer "F.Cu")
     (tstamp 7daa5377-5817-45f2-9590-c35600ccf053)
-    (at 220.857204 38.943747)
+    (at 219.837204 39.013747)
     (attr board_only exclude_from_pos_files exclude_from_bom)
     (fp_text reference "G***" (at 0 0) (layer "F.SilkS") hide
         (effects (font (size 1.5 1.5) (thickness 0.3)))
@@ -9350,15 +9350,15 @@
 
   (footprint "LOGO" (layer "B.Cu")
     (tstamp bc681b0b-1bf8-4de0-ae97-9bbb665c77b2)
-    (at 220.87 38.95 180)
+    (at 219.85 39.02 180)
     (attr board_only exclude_from_pos_files exclude_from_bom)
     (fp_text reference "G***" (at 0 0) (layer "B.SilkS") hide
         (effects (font (size 1.5 1.5) (thickness 0.3)) (justify mirror))
-      (tstamp 26519d1f-545f-407b-bdb1-dee9acd39012)
+      (tstamp 7c95ba1d-7298-4759-b169-cfa983a17161)
     )
     (fp_text value "LOGO" (at 0.75 0) (layer "B.SilkS") hide
         (effects (font (size 1.5 1.5) (thickness 0.3)) (justify mirror))
-      (tstamp a72a9257-8dec-48c9-817e-92926bae70eb)
+      (tstamp e8ae2fc9-1ce1-4e12-a9b6-d36d7309adbc)
     )
     (fp_poly
       (pts
@@ -9372,7 +9372,7 @@
         (xy -2.688823 3.276612)
       )
 
-      (stroke (width 0) (type solid)) (fill solid) (layer "B.Mask") (tstamp a16224ca-1e3f-4878-b769-3eeaa904617a))
+      (stroke (width 0) (type solid)) (fill solid) (layer "B.Mask") (tstamp 40f03792-e8c1-4aee-b153-5852045a3a21))
     (fp_poly
       (pts
         (xy -0.525258 -1.919695)
@@ -9385,7 +9385,7 @@
         (xy -0.525258 -0.550271)
       )
 
-      (stroke (width 0) (type solid)) (fill solid) (layer "B.Mask") (tstamp 3f1d134e-00a3-4488-ab9f-ddee17220313))
+      (stroke (width 0) (type solid)) (fill solid) (layer "B.Mask") (tstamp 737c8826-946e-444a-a783-c20171cb70ab))
     (fp_poly
       (pts
         (xy -0.525258 1.907188)
@@ -9398,7 +9398,7 @@
         (xy -0.525258 3.276612)
       )
 
-      (stroke (width 0) (type solid)) (fill solid) (layer "B.Mask") (tstamp a7611950-5acb-4cc8-8881-52be74ef38c3))
+      (stroke (width 0) (type solid)) (fill solid) (layer "B.Mask") (tstamp 59cd04ea-83ff-4660-a0f7-4ba61d435328))
     (fp_poly
       (pts
         (xy 1.638307 1.628097)
@@ -9502,7 +9502,7 @@
         (xy 1.638307 3.276612)
       )
 
-      (stroke (width 0) (type solid)) (fill solid) (layer "B.Mask") (tstamp 8c3c89b0-632e-421f-846c-33bd2bd2060b))
+      (stroke (width 0) (type solid)) (fill solid) (layer "B.Mask") (tstamp abb1c22b-9e90-4be6-afb7-3960776ced9c))
   )
 
   (gr_line (start 220.52 61.51) (end 220.52 45.51)
@@ -9612,7 +9612,6 @@
   (via (at 214.83 120.2) (size 0.6) (drill 0.3) (layers "F.Cu" "B.Cu") (free) (net 2) (tstamp 0a4dfa7d-7242-468e-bddf-8115e2deda9c))
   (via (at 133.12 105.081819) (size 0.6) (drill 0.3) (layers "F.Cu" "B.Cu") (free) (net 2) (tstamp 0ad32548-1a26-4d3c-b67a-300b91906b13))
   (via (at 219.856361 132) (size 0.6) (drill 0.3) (layers "F.Cu" "B.Cu") (free) (net 2) (tstamp 0b9df82a-2ee9-4e82-814e-d001327a249c))
-  (via (at 215.9 40.64) (size 0.6) (drill 0.3) (layers "F.Cu" "B.Cu") (free) (net 2) (tstamp 0ffed7a1-e726-40e2-a209-4855938524e3))
   (via (at 133.12 81.154547) (size 0.6) (drill 0.3) (layers "F.Cu" "B.Cu") (free) (net 2) (tstamp 10ff5168-a4b4-4de9-a1da-a52eaca9e979))
   (via (at 199.36 122.95) (size 0.6) (drill 0.3) (layers "F.Cu" "B.Cu") (free) (net 2) (tstamp 1401fc0e-8d5f-4e78-aee6-c674126b9dd5))
   (via (at 160.038181 132) (size 0.6) (drill 0.3) (layers "F.Cu" "B.Cu") (free) (net 2) (tstamp 14704223-0dd5-407a-a427-af465dbb508b))
