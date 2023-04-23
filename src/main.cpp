@@ -102,39 +102,39 @@ void setup()
 
 void loop() 
 {
-  //Code to test temperature PoC
-  int serialreadout = Serial.read();
-  if(serialreadout > 0)
-  {
-    Serial.println(serialreadout);
-    switch(serialreadout)
-    {
-      case 48:
-        weatherStation.targetTemp = 17.0f;
-        break;
-      case 49:
-        weatherStation.targetTemp = 19.0f;
-        break;
-      case 50:
-        weatherStation.targetTemp = 21.0f;
-        break;
-      case 51:
-        weatherStation.targetTemp = 23.0f;
-        break;
-      case 52:
-        weatherStation.targetTemp = 25.0f;
-        break;
-      case 53:
-        weatherStation.targetTemp = 30.0f;
-        break;
-      case 54:
-        weatherStation.targetTemp = 35.0f;
-        break;
-      case 55:
-        weatherStation.targetTemp = 40.0f;
-        break;
-    };
-  }
+  // //Code to test temperature PoC
+  // int serialreadout = Serial.read();
+  // if(serialreadout > 0)
+  // {
+  //   Serial.println(serialreadout);
+  //   switch(serialreadout)
+  //   {
+  //     case 48:
+  //       weatherStation.targetTemp = 17.0f;
+  //       break;
+  //     case 49:
+  //       weatherStation.targetTemp = 19.0f;
+  //       break;
+  //     case 50:
+  //       weatherStation.targetTemp = 21.0f;
+  //       break;
+  //     case 51:
+  //       weatherStation.targetTemp = 23.0f;
+  //       break;
+  //     case 52:
+  //       weatherStation.targetTemp = 25.0f;
+  //       break;
+  //     case 53:
+  //       weatherStation.targetTemp = 30.0f;
+  //       break;
+  //     case 54:
+  //       weatherStation.targetTemp = 35.0f;
+  //       break;
+  //     case 55:
+  //       weatherStation.targetTemp = 40.0f;
+  //       break;
+  //   };
+  // }
 
   /* Handle updating current weather report */
   if(delayMillis(weatherStation.APITimeout)) updateWeatherReports();
