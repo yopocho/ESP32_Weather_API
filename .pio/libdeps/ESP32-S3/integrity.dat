@@ -1,0 +1,9 @@
+mbed-seeed/BluetoothSerial@0.0.0+sha.f56002898ee8
+gbertaz/NonBlockingDallas@^1.0.3
+paulstoffregen/OneWire@^2.3.7
+waspinator/AccelStepper@^1.64
+milesburton/DallasTemperature@^3.11.0
+h2zero/NimBLE-Arduino@^1.4.1
+madhephaestus/ESP32Servo@^0.13.0
+bblanchon/ArduinoJson@^6.20.1
+arduino-libraries/ArduinoBLE@^1.3.3
