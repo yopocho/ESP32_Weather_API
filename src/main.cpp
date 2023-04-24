@@ -85,6 +85,22 @@ void setup()
   digitalWrite(peltierCool, LOW);
   digitalWrite(peltierHeat, LOW);
 
+  /* Stepper task setup */
+    //create a task that will be executed in the Task1code() function, with priority 1 and executed on core 0
+  xTaskCreatePinnedToCore(
+                    displayPrecipitation,   /* Task function. */
+                    "Task1",     /* name of task. */
+                    10000,       /* Stack size of task */
+                    NULL,        /* parameter of the task */
+                    1,           /* priority of the task */
+                    &Task1,      /* Task handle to keep track of created task */
+                    0            /* pin task to core 0 */   
+  );            
+
+  #ifdef DEBUG
+    Serial.println("Initialized function displayPrecipitation() to core 0");
+  #endif
+
   /* Precipitation Stepper */
   stepper.setMaxSpeed(400); 
   stepper.setAcceleration(30000); 
@@ -93,6 +109,9 @@ void setup()
   #ifdef DEBUG
     Serial.println("Weatherstation initialization completed");
   #endif
+
+  Serial.print("setup() running on core ");
+  Serial.println(xPortGetCoreID());
 }
 
 void loop() 

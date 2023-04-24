@@ -143,6 +143,10 @@ BLEStringCharacteristic locationCharacteristic(locationCharacteristicUUID, BLERe
 /* EEPROM */
 Preferences preferences;
 
+/* Task for multi-core utilization */
+TaskHandle_t Task1;
+bool displayPrecipitationFlag = false;
+
 /* Function prototypes */
 void setup();
 void loop();
@@ -537,24 +541,37 @@ void idle()
 
   /* Disable precipitation stepper */
   digitalWrite(enablePin, HIGH);
+  displayPrecipitationFlag = false;
 
   /* Handle BLE */
   BLE.poll();
 
   /* Keep temperature up-to-date */
-  // tempSensor.update();
+  updateTemperature();
+
+  //test
+  Serial.print("idle() running on core ");
+  Serial.println(xPortGetCoreID());
+}
+
+void displayPrecipitation(void *pvParameters)
+{
+  if(displayPrecipitationFlag)
+  {
+    digitalWrite(enablePin, LOW);
+    if (stepper.distanceToGo() == 0) stepper.moveTo(-stepper.currentPosition()); 
+    stepper.run(); 
+  }
 }
 
 void displayWeather(weatherReportObject *weatherReport)
 {
-  // /* Handle precipitation */
-  // digitalWrite(enablePin, LOW);
-  // if (stepper.distanceToGo() == 0) stepper.moveTo(-stepper.currentPosition()); 
-  // stepper.run(); 
+  /* Handle precipitation */
+  displayPrecipitationFlag = true;
 
   /* Handle temperature */
   // weatherStation.targetTemp = weatherReport->windChillTemperature; GEVOEL IS NIET LINEAIR, MOET EEN f(x) FUNCTIE WORDEN
-  // tempSensor.update();
+  updateTemperature();
   controlLoop(weatherStation.measuredTemp);
   #ifdef DEBUG
     Serial.print(weatherStation.measuredTemp);
