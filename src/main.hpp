@@ -36,7 +36,7 @@
 
 #define JSON_CAPACITY 2048 //JSON
 
-#define TEMP_TIMEOUT 250 //MAX6675 readout interval
+#define TEMP_TIMEOUT 1000 //MAX6675 readout interval
 
 #define serviceUUID "1289b0a6-c715-11ed-afa1-0242ac120002"
 #define languageCharacteristicUUID "1289b3f8-c715-11ed-afa1-0242ac120002"
@@ -51,7 +51,7 @@ class weatherstationObject //Contains default values
     const uint32_t APITimeout = 30000;
     float measuredTemp = 0.0f;
     float targetTemp = 20.0f; 
-    uint32_t timeout = 999;
+    uint32_t timeout = 10000;
     const String endpointCurrent = "http://api.openweathermap.org/data/2.5/weather?";
     const String endpoint3hour5days = "http://api.openweathermap.org/data/2.5/forecast?";
     String lattitude = "52.0000";
@@ -541,37 +541,33 @@ void idle()
 
   /* Disable precipitation stepper */
   digitalWrite(enablePin, HIGH);
-  displayPrecipitationFlag = false;
+  vTaskSuspend(Task1);
 
   /* Handle BLE */
   BLE.poll();
-
-  /* Keep temperature up-to-date */
-  updateTemperature();
-
-  //test
-  Serial.print("idle() running on core ");
-  Serial.println(xPortGetCoreID());
 }
 
 void displayPrecipitation(void *pvParameters)
 {
-  if(displayPrecipitationFlag)
+  #ifdef DEBUG
+    Serial.println("Task running on core " + xPortGetCoreID());
+  #endif
+  while(true)
   {
-    digitalWrite(enablePin, LOW);
-    if (stepper.distanceToGo() == 0) stepper.moveTo(-stepper.currentPosition()); 
-    stepper.run(); 
+      Serial.println("Test succesful");
+      digitalWrite(enablePin, LOW);
+      if (stepper.distanceToGo() == 0) stepper.moveTo(-stepper.currentPosition()); 
+      stepper.run(); 
   }
 }
 
 void displayWeather(weatherReportObject *weatherReport)
 {
   /* Handle precipitation */
-  displayPrecipitationFlag = true;
+  vTaskResume(Task1);
 
   /* Handle temperature */
   // weatherStation.targetTemp = weatherReport->windChillTemperature; GEVOEL IS NIET LINEAIR, MOET EEN f(x) FUNCTIE WORDEN
-  updateTemperature();
   controlLoop(weatherStation.measuredTemp);
   #ifdef DEBUG
     Serial.print(weatherStation.measuredTemp);

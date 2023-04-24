@@ -86,7 +86,6 @@ void setup()
   digitalWrite(peltierHeat, LOW);
 
   /* Stepper task setup */
-    //create a task that will be executed in the Task1code() function, with priority 1 and executed on core 0
   xTaskCreatePinnedToCore(
                     displayPrecipitation,   /* Task function. */
                     "Task1",     /* name of task. */
@@ -95,7 +94,8 @@ void setup()
                     1,           /* priority of the task */
                     &Task1,      /* Task handle to keep track of created task */
                     0            /* pin task to core 0 */   
-  );            
+  );
+  vTaskSuspend(Task1);
 
   #ifdef DEBUG
     Serial.println("Initialized function displayPrecipitation() to core 0");
@@ -110,8 +110,10 @@ void setup()
     Serial.println("Weatherstation initialization completed");
   #endif
 
-  Serial.print("setup() running on core ");
-  Serial.println(xPortGetCoreID());
+
+
+
+  pinMode(21, OUTPUT);
 }
 
 void loop() 
@@ -159,13 +161,13 @@ void loop()
   /* Update relevant flags */
   if(digitalRead(buttonCurrentWeather)) 
   {
-    esp_timer_start_once(timerWeatherFlags, weatherStation.timeout * 1000000);
+    esp_timer_start_once(timerWeatherFlags, weatherStation.timeout * 1000);
     flagCurrentWeather = true;
   }
 
   if(digitalRead(buttonUpcomingWeather))
   {
-    esp_timer_start_once(timerWeatherFlags, weatherStation.timeout * 1000000);
+    esp_timer_start_once(timerWeatherFlags, weatherStation.timeout * 1000);
     flagUpcomingWeather = true;
   }
 
