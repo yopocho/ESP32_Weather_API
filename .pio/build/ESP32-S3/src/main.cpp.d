@@ -175,10 +175,7 @@
  C:/Users/niels/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32s3/include/spi_flash/include/esp_spi_flash.h \
  C:/Users/niels/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32s3/include/spi_flash/include/esp_spi_flash_counters.h \
  C:/Users/niels/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32s3/include/esp_hw_support/include/soc/esp32/spiram.h \
- src/main.hpp .pio/libdeps/ESP32-S3/OneWire/OneWire.h \
- .pio/libdeps/ESP32-S3/OneWire/util/OneWire_direct_regtype.h \
- .pio/libdeps/ESP32-S3/DallasTemperature/DallasTemperature.h \
- .pio/libdeps/ESP32-S3/NonBlockingDallas/NonBlockingDallas.h \
+ src/main.hpp \
  C:/Users/niels/.platformio/packages/framework-arduinoespressif32/libraries/WiFi/src/WiFi.h \
  C:/Users/niels/.platformio/packages/framework-arduinoespressif32/cores/esp32/Print.h \
  C:/Users/niels/.platformio/packages/framework-arduinoespressif32/cores/esp32/IPv6Address.h \
@@ -263,4 +260,5 @@
  .pio/libdeps/ESP32-S3/ArduinoBLE/src/BLETypedCharacteristic.h \
  .pio/libdeps/ESP32-S3/ArduinoBLE/src/utility/btct.h \
  C:/Users/niels/.platformio/packages/framework-arduinoespressif32/libraries/Preferences/src/Preferences.h \
- .pio/libdeps/ESP32-S3/AccelStepper/src/AccelStepper.h
+ .pio/libdeps/ESP32-S3/AccelStepper/src/AccelStepper.h \
+ .pio/libdeps/ESP32-S3/MAX6675\ library/max6675.h

@@ -6,7 +6,6 @@ void setup()
 
   /* Serial setup */
   Serial.begin(115200);
-  sensors.begin();
 
   /* Bluetooth setup */
   if (!BLE.begin()) {
@@ -91,10 +90,6 @@ void setup()
   stepper.setAcceleration(30000); 
   stepper.moveTo(300); 
 
-  /* Non-blocking Dallas */
-  tempSensor.begin(NonBlockingDallas::resolution_12, NonBlockingDallas::unit_C, TEMP_TIMEOUT);
-  tempSensor.onIntervalElapsed(measureTemperature);
-
   #ifdef DEBUG
     Serial.println("Weatherstation initialization completed");
   #endif
@@ -137,7 +132,10 @@ void loop()
   }
 
   /* Handle updating current weather report */
-  if(delayMillis(weatherStation.APITimeout)) updateWeatherReports();
+  if(APITimeout(weatherStation.APITimeout)) updateWeatherReports();
+
+  /* Handle updating temperature reading */
+  if(tempTimeout(TEMP_TIMEOUT)) updateTemperature();
 
   /* Update relevant flags */
   if(digitalRead(buttonCurrentWeather)) 

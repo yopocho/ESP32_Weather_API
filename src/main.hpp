@@ -2,9 +2,9 @@
 #define MAIN_HPP_
 
 #include <Arduino.h>
-#include <OneWire.h>
-#include <DallasTemperature.h>
-#include <NonBlockingDallas.h> 
+// #include <OneWire.h>
+// #include <DallasTemperature.h>
+// #include <NonBlockingDallas.h> 
 #include <String.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
@@ -13,6 +13,7 @@
 #include <ArduinoBLE.h>
 #include <Preferences.h>
 #include <AccelStepper.h>
+#include <max6675.h>
 #include "esp_timer.h"
 #include "sdkconfig.h"
 
@@ -35,7 +36,7 @@
 
 #define JSON_CAPACITY 2048 //JSON
 
-#define TEMP_TIMEOUT 900 //BS18D20 read interval
+#define TEMP_TIMEOUT 250 //MAX6675 readout interval
 
 #define serviceUUID "1289b0a6-c715-11ed-afa1-0242ac120002"
 #define languageCharacteristicUUID "1289b3f8-c715-11ed-afa1-0242ac120002"
@@ -79,42 +80,52 @@ weatherReportObject weatherReportUpcoming;
 const char* ssid = "Niels hotspot";
 const char* password =  "Ikwilkaas";
 
-/* DB18B20 Temp sensor interface */
-const int oneWireBus = 4;  
-OneWire oneWire(oneWireBus);
-DallasTemperature sensors(&oneWire);
-NonBlockingDallas tempSensor(&sensors);
+/* MAX6675 Thermocouple def. */
+const int thermocoupleCLK = 12;
+const int thermocoupleCS = 10;
+const int thermocoupleMISO = 11;
+MAX6675 thermocouple(thermocoupleCLK, thermocoupleCS, thermocoupleMISO);
+// const int oneWireBus = 4;  
+// OneWire oneWire(oneWireBus);
+// DallasTemperature sensors(&oneWire);
+// NonBlockingDallas tempSensor(&sensors);
 
 /* Pin def. for heatsink fan control */
-const int peltierFanPin = 6;
+const int peltierFanPWMPin = 6;
 
 /* Pin def. for wind fan control */
-const int windFanPin = 7;
+const int windFanPWMPin = 7;
 
 /* Pin def. for peltier H-Bridge */
-const int peltierHeat = 16;
-const int peltierCool = 15;
+const int peltierHeat = 9;
+const int peltierCool = 46;
 
 /* Pin def. for Neopixel data */
-const int neopixelPin = 9;
+const int neopixelPin = 16;
 
 /* Pin def. servo */
-const int servoPin = 17;
+const int servoPin = 15;
 Servo slipperinessDiscServo;
 
 /* Precipitation Stepper */
-const int directionPin = 36; 
-const int stepPin = 37; 
-const int enablePin = 38; 
+const int directionPin = 38; 
+const int stepPin = 39; 
+const int enablePin = 40; 
 AccelStepper stepper(AccelStepper::DRIVER, stepPin, directionPin);
 
 /* Pin def. User Interface Buttons */
-const int buttonCurrentWeather = 3;
-const int buttonUpcomingWeather = 8;
+const int buttonCurrentWeather = 47;
+const int buttonUpcomingWeather = 48;
 const float tempHysteresis = 0.5;
+
+/* Pin def. vibration motor */
+const int motorEnable = 21;
 
 /* API Time-out timer */
 uint32_t previousMillisAPI = 0;
+
+/* Temperature time-out timer */
+uint32_t previousMillisTemp = 0;
 
 /* Timed processes */
 esp_timer_handle_t timerWeatherFlags;
@@ -225,7 +236,7 @@ void controlLoop(float temp)
   {
     digitalWrite(peltierCool, LOW);
     digitalWrite(peltierHeat, HIGH);
-    digitalWrite(peltierFanPin, LOW); 
+    digitalWrite(peltierFanPWMPin, LOW); 
     higherFlag = false;
     #ifdef DEBUG
       Serial.println("Raising temperature");
@@ -235,7 +246,7 @@ void controlLoop(float temp)
   {
     digitalWrite(peltierHeat, LOW);
     digitalWrite(peltierCool, HIGH);
-    digitalWrite(peltierFanPin, HIGH); 
+    digitalWrite(peltierFanPWMPin, HIGH); 
     lowerFlag = false;
     #ifdef DEBUG
       Serial.println("Lowering temperature");
@@ -245,21 +256,18 @@ void controlLoop(float temp)
   {
     digitalWrite(peltierCool, LOW);
     digitalWrite(peltierHeat, LOW);
-    digitalWrite(peltierFanPin, LOW); 
+    digitalWrite(peltierFanPWMPin, LOW); 
   }
 }
 
 
-void measureTemperature(float temperature, bool valid, int deviceIndex)
+void updateTemperature()
 {
-  if(valid) weatherStation.measuredTemp = temperature;
+  weatherStation.measuredTemp = thermocouple.readCelsius();
   #ifdef DEBUG
     Serial.print("Measured temperature: ");
     Serial.println(weatherStation.measuredTemp);
   #endif
-  // sensors.requestTemperatures(); 
-  // float temperatureC = sensors.getTempCByIndex(0);
-  // return temperatureC;
 }
 
 
@@ -356,7 +364,7 @@ void getSmoothness(void)
 }
 
 
-bool delayMillis(uint32_t delayAmount)
+bool APITimeout(uint32_t delayAmount)
 {
   uint32_t timeoutMillis = delayAmount;
   uint32_t currentMillis = millis();
@@ -368,6 +376,17 @@ bool delayMillis(uint32_t delayAmount)
   else return false;
 }
 
+bool tempTimeout(uint32_t delayAmount)
+{
+  uint32_t timeoutMillis = delayAmount;
+  uint32_t currentMillis = millis();
+  if (currentMillis > (previousMillisTemp + timeoutMillis))
+  {
+    previousMillisTemp = currentMillis;
+    return true;
+  }
+  else return false;
+}
 
 uint16_t getWeatherID(DynamicJsonDocument weatherReport)
 {
@@ -523,7 +542,7 @@ void idle()
   BLE.poll();
 
   /* Keep temperature up-to-date */
-  tempSensor.update();
+  // tempSensor.update();
 }
 
 void displayWeather(weatherReportObject *weatherReport)
@@ -535,7 +554,7 @@ void displayWeather(weatherReportObject *weatherReport)
 
   /* Handle temperature */
   // weatherStation.targetTemp = weatherReport->windChillTemperature; GEVOEL IS NIET LINEAIR, MOET EEN f(x) FUNCTIE WORDEN
-  tempSensor.update();
+  // tempSensor.update();
   controlLoop(weatherStation.measuredTemp);
   #ifdef DEBUG
     Serial.print(weatherStation.measuredTemp);
