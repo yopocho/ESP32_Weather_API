@@ -176,3 +176,33 @@ void loop()
   else if(flagUpcomingWeather) displayWeather(&weatherReportUpcoming);
   else idle();
 }
+
+/*
+ * TODO:
+ *  
+ *  Add getPrecipitation (Rain OR snow OR hail)
+ *    Add relevant haracteristic to weatherstation object
+ *    Add map from mm(?) to stepper speed
+ * 
+ *  Add getWindSpeed
+ *    Add relevant haracteristic to weatherstation object
+ *    Add map from m/s to fan PWM dutycycle % (RPM) (Use ledc for easy PWM) 
+ * 
+ *  Add to app: 
+ *    WiFi connection listpicker (I guess select SSID and enter key? Has to be a better way maybe?)
+ *    Training mode (Set temp, wind, precip, slipperiness)
+ *    Actually use the selected language in the app
+ *  
+ *  Rewrite getWeatherDescription, getWeatherID and getWindChillTemperature to allow for current and upcoming weather
+ *  
+ *  Redo slipperiness map
+ * 
+ *  Add Doxygen documentation perhaps?
+ * 
+ *  Redo file/include structure (Seperate files cuz this sucks rn :'))
+ * 
+ *  
+ *  
+ * 
+ * 
+ */
