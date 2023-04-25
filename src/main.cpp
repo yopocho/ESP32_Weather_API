@@ -201,8 +201,9 @@ void loop()
  * 
  *  Redo file/include structure (Seperate files cuz this sucks rn :'))
  * 
+ *  Add statusled logic
  *  
- *  
+ *  Add vibration motor logic
  * 
  * 
  */

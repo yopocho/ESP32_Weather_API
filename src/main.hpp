@@ -34,7 +34,7 @@
 
 #define CHARACTERISTIC_SIZE 512 //BLE
 
-#define JSON_CAPACITY 2048 //JSON
+#define JSON_CAPACITY 4096 //JSON
 
 #define TEMP_TIMEOUT 1000 //MAX6675 readout interval
 
@@ -58,7 +58,7 @@ class weatherstationObject //Contains default values
     String longitude = "5.0000";
     String language = "nl";
     String units = "metric";
-    String stepCount = "1";
+    String stepCount = "4";
     String callOpenWeatherMapAPI(String endpoint);
 };
 weatherstationObject weatherStation;
@@ -394,23 +394,7 @@ bool tempTimeout(uint32_t delayAmount)
 
 uint16_t getWeatherID(DynamicJsonDocument weatherReport)
 {
-  int weatherID = 0;
-  String weatherStrings[3];
-  int stringIterator = 0;
-
-  JsonArray weatherArray = weatherReport["weather"].as<JsonArray>();
-  
-  stringIterator = 0;
-  for (JsonObject a : weatherArray) 
-  {
-    for (JsonPair kv : a) 
-    {
-        if(kv.value().is<int>()) weatherID = kv.value().as<int>();
-        else weatherStrings[stringIterator++] = kv.value().as<const char*>();
-    }
-  }
-  
-  return weatherID;
+  return weatherReport["main"]["feels_like"];
 }
 
 
@@ -533,6 +517,7 @@ void initTimers()
   esp_timer_create(&timerWeatherFlagsArgs, &timerWeatherFlags);
 }
 
+
 void idle()
 {
   /* Ensure peltier is off */
@@ -547,6 +532,7 @@ void idle()
   BLE.poll();
 }
 
+
 void displayPrecipitation(void *pvParameters)
 {
   #ifdef DEBUG
@@ -560,6 +546,7 @@ void displayPrecipitation(void *pvParameters)
       stepper.run(); 
   }
 }
+
 
 void displayWeather(weatherReportObject *weatherReport)
 {
