@@ -97,9 +97,13 @@ MAX6675 thermocouple(thermocoupleCLK, thermocoupleCS, thermocoupleMISO);
 
 /* Pin def. for heatsink fan control */
 const int peltierFanPWMPin = 6;
+const int peltierFanPWMChannel = 1;
+const int fanPWMFrequency = 25000; // Fans require 25kHz
+const int fanPWMResolution = 8; // bits
 
 /* Pin def. for wind fan control */
 const int windFanPWMPin = 7;
+const int windFanPWMChannel = 2;
 
 /* Pin def. for peltier H-Bridge */
 const int peltierHeat = 9;
@@ -151,11 +155,15 @@ Preferences preferences;
 /* Task handle for multi-core utilization for stepper */
 TaskHandle_t stepperTask;
 
+/* One time event flag */
+bool doOnceFlag = false;
+
 /* Function prototypes */
 void setup();
 void loop();
 void setLocation(String location);
 void setLanguage(String language);
+void setWindSpeedFan(float windSpeed);
 
 /* Function definitions */
 String weatherstationObject::callOpenWeatherMapAPI(String endpoint)
@@ -194,11 +202,19 @@ String weatherstationObject::callOpenWeatherMapAPI(String endpoint)
 
 int initGPIO()
 {
-    /* Peltier H-Bridge setup */
+    /* Peltier setup */
   pinMode(peltierCool, OUTPUT);
   pinMode(peltierHeat, OUTPUT);
   pinMode(buttonCurrentWeather, INPUT);
   pinMode(buttonUpcomingWeather, INPUT);
+
+  ledcSetup(peltierFanPWMChannel, fanPWMFrequency, fanPWMResolution);
+  ledcAttachPin(peltierFanPWMPin, peltierFanPWMChannel);
+
+  /* Wind setup */
+  ledcSetup(windFanPWMChannel, fanPWMFrequency, fanPWMResolution);
+  ledcAttachPin(windFanPWMPin, windFanPWMChannel);
+
 
   /* Init servo */
 	ESP32PWM::allocateTimer(2);
@@ -247,7 +263,7 @@ void controlLoop(float temp)
     digitalWrite(peltierFanPWMPin, LOW); 
     higherFlag = false;
     #ifdef DEBUG
-      Serial.println("Raising temperature");
+      // Serial.println("Raising temperature");
     #endif
   }
   else if (lowerFlag)
@@ -257,7 +273,7 @@ void controlLoop(float temp)
     digitalWrite(peltierFanPWMPin, HIGH); 
     lowerFlag = false;
     #ifdef DEBUG
-      Serial.println("Lowering temperature");
+      // Serial.println("Lowering temperature");
     #endif
   }
   else if(!lowerFlag && !higherFlag)
@@ -612,10 +628,17 @@ void idle()
   /* Ensure peltier is off */
   if(digitalRead(peltierCool)) digitalWrite(peltierCool, LOW);
   if(digitalRead(peltierHeat)) digitalWrite(peltierHeat, LOW);
+  ledcWrite(peltierFanPWMChannel, 0);
 
   /* Disable precipitation stepper */
   digitalWrite(enablePin, HIGH);
   vTaskSuspend(stepperTask);
+
+  /* Disable wind */
+  ledcWrite(windFanPWMChannel, 0);
+
+  /* Update flag(s) */
+  doOnceFlag = false;
 
   /* Handle BLE */
   BLE.poll();
@@ -629,7 +652,6 @@ void displayPrecipitation(void *pvParameters)
   #endif
   while(true)
   {
-      Serial.println("Test succesful");
       digitalWrite(enablePin, LOW);
       if (stepper.distanceToGo() == 0) stepper.moveTo(-stepper.currentPosition()); 
       stepper.run(); 
@@ -639,24 +661,31 @@ void displayPrecipitation(void *pvParameters)
 
 void displayWeather(weatherReportObject *weatherReport)
 {
-  /* Handle precipitation */
-  vTaskResume(stepperTask);
-
   /* Handle temperature */
   // weatherStation.targetTemp = weatherReport->windChillTemperature; GEVOEL IS NIET LINEAIR, MOET EEN f(x) FUNCTIE WORDEN
   controlLoop(weatherStation.measuredTemp);
   #ifdef DEBUG
-    Serial.print(weatherStation.measuredTemp);
-    Serial.println("ºC");
+    // Serial.print(weatherStation.measuredTemp);
+    // Serial.println("ºC");
   #endif
-  
-  // /* Handle slipperiness */
-  // if (!setSlipperinessServo(weatherReport->weatherID)) 
-  // {
-  //   #ifdef DEBUG
-  //     Serial.println("Error: weatherID not valid");
-  //   #endif
-  // }
+
+  if(doOnceFlag)
+  {
+    /* Handle wind */
+    setWindSpeedFan(weatherReport->windSpeed);
+
+    /* Handle precipitation */
+    vTaskResume(stepperTask);
+
+    /* Handle slipperiness */
+    if (!setSlipperinessServo(weatherReport->weatherID)) 
+    {
+      #ifdef DEBUG
+        Serial.println("Error: weatherID not valid");
+      #endif
+    }
+    doOnceFlag = false;
+  }
 }
 
 void updateWeatherReports()
@@ -686,7 +715,7 @@ void updateWeatherReports()
   #ifdef DEBUG
     Serial.println("-----Current weather-----");
     Serial.println(weatherCurrentString);
-    Serial.print("Weather ID: ");
+    Serial.print("\nWeather ID: ");
     Serial.println(weatherReportCurrent.weatherID);
     Serial.print("Het huidige weer is: ");
     Serial.println(weatherReportCurrent.weatherDescription);
@@ -699,8 +728,13 @@ void updateWeatherReports()
     Serial.print("De sneeuw is: ");
     Serial.println(weatherReportCurrent.snowLevel);
 
+    int timeInterval = weatherStation.stepCount.toInt();
+    timeInterval *= 3;
     Serial.println("\n-----Upcoming weather-----");
     Serial.println(weatherUpcomingString);
+    Serial.print("\nHet weer over ");
+    Serial.print(timeInterval);
+    Serial.println(" uur");
     Serial.print("Weather ID: ");
     Serial.println(weatherReportUpcoming.weatherID);
     Serial.print("het opkomende weer zal zijn: ");
@@ -716,6 +750,21 @@ void updateWeatherReports()
   #endif
 }
 
+float mapFloat(float x, float in_min, float in_max, float out_min, float out_max)
+{
+ return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
+
+void setWindSpeedFan(float windSpeed)
+{ 
+  uint32_t fanPWM = (uint32_t)round(mapFloat(windSpeed, 0.0, 10.0, 0, 255));
+  ledcWrite(windFanPWMChannel, fanPWM);
+  #ifdef DEBUG
+    Serial.print("Set Wind-fan PWM to: ");
+    Serial.print(fanPWM);
+    Serial.println("/255");
+  #endif
+}
 
 #endif
 
