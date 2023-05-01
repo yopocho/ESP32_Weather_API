@@ -87,33 +87,32 @@ void setup()
 
   /* Stepper task setup */
   xTaskCreatePinnedToCore(
-                    displayPrecipitation,   /* Task function. */
-                    "Task1",     /* name of task. */
-                    10000,       /* Stack size of task */
-                    NULL,        /* parameter of the task */
-                    1,           /* priority of the task */
-                    &Task1,      /* Task handle to keep track of created task */
-                    0            /* pin task to core 0 */   
+    displayPrecipitation,   /* Task function. */
+    "stepperTask",          /* name of task. */
+    10000,                  /* Stack size of task */
+    NULL,                   /* parameter of the task */
+    1,                      /* priority of the task */
+    &stepperTask,           /* Task handle to keep track of created task */
+    0                       /* pin task to core 0 */   
   );
-  vTaskSuspend(Task1);
+  vTaskSuspend(stepperTask);
 
   #ifdef DEBUG
-    Serial.println("Initialized function displayPrecipitation() to core 0");
+    Serial.println("Initialized function displayPrecipitation()");
   #endif
 
   /* Precipitation Stepper */
   stepper.setMaxSpeed(400); 
   stepper.setAcceleration(30000); 
   stepper.moveTo(300); 
+  
+  /* Initial update to weather reports */
+  updateWeatherReports();
 
   #ifdef DEBUG
     Serial.println("Weatherstation initialization completed");
   #endif
 
-
-
-
-  pinMode(21, OUTPUT);
 }
 
 void loop() 
@@ -192,8 +191,6 @@ void loop()
  *    WiFi connection listpicker (I guess select SSID and enter key? Has to be a better way maybe?)
  *    Training mode (Set temp, wind, precip, slipperiness)
  *    Actually use the selected language in the app
- *  
- *  Rewrite getWeatherDescription, getWeatherID and getWindChillTemperature to allow for current and upcoming weather
  *  
  *  Redo slipperiness map
  * 

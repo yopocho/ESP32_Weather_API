@@ -26,6 +26,9 @@
 #define ERR_NO_DATA "No data returned"
 #define ERR_NO_WIFI "No wifi connection established"
 
+#define ERR_INVALID_INPUT "Input object invalid"
+#define ERR_INVALID_DATA "Given JSON object does not contain valid data"
+
 #define NOT_SLIPPERY_POS 0
 #define SLIGHTLY_SLIPPERY_POS 45
 #define QUITE_SLIPPERY_POS 90
@@ -58,7 +61,7 @@ class weatherstationObject //Contains default values
     String longitude = "5.0000";
     String language = "nl";
     String units = "metric";
-    String stepCount = "4";
+    String stepCount = "1";
     String callOpenWeatherMapAPI(String endpoint);
 };
 weatherstationObject weatherStation;
@@ -72,6 +75,8 @@ typedef struct
   float windChillTemperature = 0.0;
   float actualTemperature = 0.0;
   float windSpeed = 0.0;
+  float rainLevel = 0.0;
+  float snowLevel = 0.0;
 } weatherReportObject;
 weatherReportObject weatherReportCurrent;
 weatherReportObject weatherReportUpcoming;
@@ -143,9 +148,8 @@ BLEStringCharacteristic locationCharacteristic(locationCharacteristicUUID, BLERe
 /* EEPROM */
 Preferences preferences;
 
-/* Task for multi-core utilization */
-TaskHandle_t Task1;
-bool displayPrecipitationFlag = false;
+/* Task handle for multi-core utilization for stepper */
+TaskHandle_t stepperTask;
 
 /* Function prototypes */
 void setup();
@@ -394,30 +398,106 @@ bool tempTimeout(uint32_t delayAmount)
 
 uint16_t getWeatherID(DynamicJsonDocument weatherReport)
 {
-  return weatherReport["main"]["feels_like"];
-}
-
-
-String getWeatherDescription(DynamicJsonDocument weatherReport)
-{
+  int weatherID = 0;
   String weatherStrings[3];
   int stringIterator = 0;
+  JsonArray weatherArray;
 
-  JsonArray weatherArray = weatherReport["weather"].as<JsonArray>();
+  if((weatherReport["cnt"].as<int>() == weatherStation.stepCount.toInt()) && (weatherReport["cod"].as<int>() == 200)) // Upcoming weather
+  {
+    int adjustedStepCount = weatherStation.stepCount.toInt() - 1;
+    weatherArray = weatherReport["list"][adjustedStepCount]["weather"];
+  }
+  else if (((weatherReport["coord"]["lat"].as<float>() != 0.0f) || (weatherReport["coord"]["lon"].as<float>() != 0.0f)) && (weatherReport["cod"].as<int>() == 200)) // Current weather
+  {
+    weatherArray = weatherReport["weather"].as<JsonArray>();
+  }
   
   stringIterator = 0;
   for (JsonObject a : weatherArray) 
   {
     for (JsonPair kv : a) 
     {
-        if(kv.value().is<int>());
+        if(kv.value().is<int>()) weatherID = kv.value().as<int>();
         else weatherStrings[stringIterator++] = kv.value().as<const char*>();
     }
   }
-
-  return weatherStrings[1];
+  
+  return weatherID;
 }
 
+
+String getWeatherDescription(DynamicJsonDocument weatherReport)
+{
+  JsonArray weatherArray;
+
+  if((weatherReport["cnt"].as<int>() == weatherStation.stepCount.toInt()) && (weatherReport["cod"].as<int>() == 200)) // Upcoming weather
+  {
+    int adjustedStepCount = weatherStation.stepCount.toInt() - 1;
+    weatherArray = weatherReport["list"][adjustedStepCount]["weather"];
+  }
+  else if (((weatherReport["coord"]["lat"].as<float>() != 0.0f) || (weatherReport["coord"]["lon"].as<float>() != 0.0f)) && (weatherReport["cod"].as<int>() == 200)) // Current weather
+  {
+    weatherArray = weatherReport["weather"].as<JsonArray>();
+  }
+
+  String weatherStrings[3];
+  int stringIterator = 0;
+
+  for (JsonObject a : weatherArray) 
+  {
+    for (JsonPair kv : a) 
+    {
+      // if(kv.key() == ID) return kv.value().as<const char*>();
+      if(kv.value().is<int>());
+      else weatherStrings[stringIterator++] = kv.value().as<const char*>();
+    }
+  }
+  if(weatherStrings[1] != NULL) return weatherStrings[1];
+  return ERR_INVALID_DATA;
+}
+
+float getRainLevel(DynamicJsonDocument weatherReport)
+{
+  if((weatherReport["cnt"].as<int>() == weatherStation.stepCount.toInt()) && (weatherReport["cod"].as<int>() == 200)) // Upcoming weather
+  {
+    int adjustedStepCount = weatherStation.stepCount.toInt() - 1;
+    return weatherReport["list"][adjustedStepCount]["rain"]["3h"];
+  }
+  else if (((weatherReport["coord"]["lat"].as<float>() != 0.0f) || (weatherReport["coord"]["lon"].as<float>() != 0.0f)) && (weatherReport["cod"].as<int>() == 200)) // Current weather
+  {
+    return weatherReport["rain"]["1h"];
+  }
+  return -1.0f;
+}
+
+float getSnowLevel(DynamicJsonDocument weatherReport)
+{
+  if((weatherReport["cnt"].as<int>() == weatherStation.stepCount.toInt()) && (weatherReport["cod"].as<int>() == 200)) // Upcoming weather
+  {
+    int adjustedStepCount = weatherStation.stepCount.toInt() - 1;
+    return weatherReport["list"][adjustedStepCount]["snow"]["3h"];
+  }
+  else if (((weatherReport["coord"]["lat"].as<float>() != 0.0f) || (weatherReport["coord"]["lon"].as<float>() != 0.0f)) && (weatherReport["cod"].as<int>() == 200)) // Current weather
+  {
+    return weatherReport["snow"]["1h"];
+  }
+  return -1.0f;
+}
+
+float getWindSpeed(DynamicJsonDocument weatherReport)
+{
+  if((weatherReport["cnt"].as<int>() == weatherStation.stepCount.toInt()) && (weatherReport["cod"].as<int>() == 200)) // Upcoming weather
+  {
+    int adjustedStepCount = weatherStation.stepCount.toInt() - 1;
+    return weatherReport["list"][adjustedStepCount]["wind"]["speed"];
+  }
+  else if (((weatherReport["coord"]["lat"].as<float>() != 0.0f) || (weatherReport["coord"]["lon"].as<float>() != 0.0f)) && (weatherReport["cod"].as<int>() == 200)) // Current weather
+  {
+    return weatherReport["wind"]["speed"];
+  }
+  return -1.0f;
+}
 
 void dataHandlerLanguageCharacteristic(BLEDevice central, BLECharacteristic characteristic) {
   String language = languageCharacteristic.value();
@@ -499,7 +579,16 @@ bool initBLE()
 
 float getWindChillTemperature(DynamicJsonDocument weatherReport)
 {
-  return weatherReport["main"]["feels_like"];
+  if((weatherReport["cnt"].as<int>() == weatherStation.stepCount.toInt()) && (weatherReport["cod"].as<int>() == 200)) // Upcoming weather
+  {
+    int adjustedStepCount = weatherStation.stepCount.toInt() - 1;
+    return weatherReport["list"][adjustedStepCount]["main"]["feels_like"];
+  }
+  else if (((weatherReport["coord"]["lat"].as<float>() != 0.0f) || (weatherReport["coord"]["lon"].as<float>() != 0.0f)) && (weatherReport["cod"].as<int>() == 200)) // Current weather
+  {
+    return weatherReport["main"]["feels_like"];
+  }
+  return -273.15f;
 }
 
 
@@ -526,7 +615,7 @@ void idle()
 
   /* Disable precipitation stepper */
   digitalWrite(enablePin, HIGH);
-  vTaskSuspend(Task1);
+  vTaskSuspend(stepperTask);
 
   /* Handle BLE */
   BLE.poll();
@@ -536,7 +625,7 @@ void idle()
 void displayPrecipitation(void *pvParameters)
 {
   #ifdef DEBUG
-    Serial.println("Task running on core " + xPortGetCoreID());
+    Serial.println("Task for driving steppermotor running on core " + xPortGetCoreID());
   #endif
   while(true)
   {
@@ -551,7 +640,7 @@ void displayPrecipitation(void *pvParameters)
 void displayWeather(weatherReportObject *weatherReport)
 {
   /* Handle precipitation */
-  vTaskResume(Task1);
+  vTaskResume(stepperTask);
 
   /* Handle temperature */
   // weatherStation.targetTemp = weatherReport->windChillTemperature; GEVOEL IS NIET LINEAIR, MOET EEN f(x) FUNCTIE WORDEN
@@ -570,7 +659,6 @@ void displayWeather(weatherReportObject *weatherReport)
   // }
 }
 
-
 void updateWeatherReports()
 {
   /*TODO: IPV dat nu alleen het huidige weer opgehaald wordt, ook tegelijkertijd de 4uur weerbericht doen en in structs gooien*/
@@ -581,6 +669,9 @@ void updateWeatherReports()
   weatherReportCurrent.weatherID = getWeatherID(weatherCurrentJSON);
   weatherReportCurrent.weatherDescription = getWeatherDescription(weatherCurrentJSON);
   weatherReportCurrent.windChillTemperature = getWindChillTemperature(weatherCurrentJSON); //Gevoelstemperatuur heeft de meeste relevantie
+  weatherReportCurrent.rainLevel = getRainLevel(weatherCurrentJSON);
+  weatherReportCurrent.windSpeed = getWindSpeed(weatherCurrentJSON);
+  weatherReportCurrent.snowLevel = getSnowLevel(weatherCurrentJSON);
   
   String weatherUpcomingString = weatherStation.callOpenWeatherMapAPI(weatherStation.endpoint3hour5days);
   DynamicJsonDocument weatherUpcomingJSON(JSON_CAPACITY);
@@ -588,6 +679,9 @@ void updateWeatherReports()
   weatherReportUpcoming.weatherID = getWeatherID(weatherUpcomingJSON);
   weatherReportUpcoming.weatherDescription = getWeatherDescription(weatherUpcomingJSON);
   weatherReportUpcoming.windChillTemperature = getWindChillTemperature(weatherUpcomingJSON);
+  weatherReportUpcoming.rainLevel = getRainLevel(weatherUpcomingJSON);
+  weatherReportUpcoming.windSpeed = getWindSpeed(weatherUpcomingJSON);
+  weatherReportUpcoming.snowLevel = getSnowLevel(weatherUpcomingJSON);
 
   #ifdef DEBUG
     Serial.println("-----Current weather-----");
@@ -598,6 +692,12 @@ void updateWeatherReports()
     Serial.println(weatherReportCurrent.weatherDescription);
     Serial.print("De gevoelstemperatuur is: ");
     Serial.println(weatherReportCurrent.windChillTemperature);
+    Serial.print("De windsnelheid is: ");
+    Serial.println(weatherReportCurrent.windSpeed);
+    Serial.print("De neerslag is: ");
+    Serial.println(weatherReportCurrent.rainLevel);
+    Serial.print("De sneeuw is: ");
+    Serial.println(weatherReportCurrent.snowLevel);
 
     Serial.println("\n-----Upcoming weather-----");
     Serial.println(weatherUpcomingString);
@@ -607,6 +707,12 @@ void updateWeatherReports()
     Serial.println(weatherReportUpcoming.weatherDescription);
     Serial.print("De gevoelstemperatuur zal zijn: ");
     Serial.println(weatherReportUpcoming.windChillTemperature);
+    Serial.print("De windsnelheid zal zijn: ");
+    Serial.println(weatherReportUpcoming.windSpeed);
+    Serial.print("De neerslag zal zijn: ");
+    Serial.println(weatherReportUpcoming.rainLevel);
+    Serial.print("De sneeuw zal zijn: ");
+    Serial.println(weatherReportUpcoming.snowLevel);
   #endif
 }
 
