@@ -1,4 +1,5 @@
 (fp_lib_table
   (version 7)
-  (lib (name "KiCAD")(type "KiCad")(uri "C:/Users/niels/Downloads/ul_max6675isa-T (1)/KiCAD/2023-04-17_12-38-44")(options "")(descr ""))
+  (lib (name "MAX6675isa-T")(type "KiCad")(uri "C:/Users/niels/Downloads/ul_max6675isa-T (1)/KiCAD/2023-04-17_12-38-44")(options "")(descr ""))
+  (lib (name "47053-3000")(type "KiCad")(uri "C:/Users/niels/Downloads/LIB_47053-3000/47053-3000/KiCad")(options "")(descr ""))
 )

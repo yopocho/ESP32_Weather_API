@@ -1287,10 +1287,10 @@
       (net 1 "+12V") (pinfunction "Pin_3") (pintype "passive") (tstamp 12b04970-72e5-4d94-aa89-3fda01f95c35))
     (pad "4" thru_hole oval (at 7.62 0 90) (size 1.74 2.19) (drill 1.19) (layers "*.Cu" "*.Mask")
       (net 2 "GND") (pinfunction "Pin_4") (pintype "passive") (tstamp 2fced426-27fc-479c-98f1-d54333b1d78c))
-    (model "${KICAD6_3DMODEL_DIR}/Connector_Molex.3dshapes/Molex_KK-254_AE-6410-04A_1x04_P2.54mm_Vertical.wrl"
-      (offset (xyz 0 0 0))
+    (model "C:/Users/niels/Downloads/LIB_47053-3000/47053-3000/3D/47053-3000.stp"
+      (offset (xyz 3.8 0 2.5))
       (scale (xyz 1 1 1))
-      (rotate (xyz 0 0 0))
+      (rotate (xyz -90 0 180))
     )
   )
 
@@ -4762,10 +4762,10 @@
       (net 1 "+12V") (pinfunction "Pin_3") (pintype "passive") (tstamp 8e77ac62-8fb5-4917-9b09-a283c7df57d7))
     (pad "4" thru_hole oval (at 7.62 0 90) (size 1.74 2.19) (drill 1.19) (layers "*.Cu" "*.Mask")
       (net 2 "GND") (pinfunction "Pin_4") (pintype "passive") (tstamp 6b7b4193-78df-4220-a781-e6c3363612b4))
-    (model "${KICAD6_3DMODEL_DIR}/Connector_Molex.3dshapes/Molex_KK-254_AE-6410-04A_1x04_P2.54mm_Vertical.wrl"
-      (offset (xyz 0 0 0))
+    (model "C:/Users/niels/Downloads/LIB_47053-3000/47053-3000/3D/47053-3000.stp"
+      (offset (xyz 3.8 0 2.5))
       (scale (xyz 1 1 1))
-      (rotate (xyz 0 0 0))
+      (rotate (xyz -90 0 180))
     )
   )
 
@@ -5071,11 +5071,11 @@
     (tags "kb_params=eyJBbGlnbm1lbnRDaG9pY2UiOiAiQ2VudGVyIiwgIkNhcExlZnRDaG9pY2UiOiAiWyIsICJDYXBSaWdodENob2ljZSI6ICJdIiwgIkZvbnRDb21ib0JveCI6ICJVYnVudHVNb25vLUIiLCAiSGVpZ2h0Q3RybCI6ICIxIiwgIkxheWVyQ29tYm9Cb3giOiAiRi5TaWxrUyIsICJNdWx0aUxpbmVUZXh0IjogIkdQSU8iLCAiUGFkZGluZ0JvdHRvbUN0cmwiOiAiNSIsICJQYWRkaW5nTGVmdEN0cmwiOiAiNSIsICJQYWRkaW5nUmlnaHRDdHJsIjogIjUiLCAiUGFkZGluZ1RvcEN0cmwiOiAiNSIsICJXaWR0aEN0cmwiOiAiIn0=")
     (attr board_only exclude_from_pos_files exclude_from_bom)
     (fp_text reference "kibuzzard-6446400D" (at 0 -3.891492 90) (layer "F.SilkS") hide
-        (effects (font (size 0 0)))
+        (effects (font (size 0 0) (thickness 0.15)))
       (tstamp 5459edc9-5baf-4831-ab9d-511f4e7de3e3)
     )
     (fp_text value "G***" (at 0 3.891492 90) (layer "F.SilkS") hide
-        (effects (font (size 0 0)))
+        (effects (font (size 0 0) (thickness 0.15)))
       (tstamp b0ba75c0-2122-4c20-b20c-73382f5ef99f)
     )
     (fp_poly
@@ -5510,10 +5510,10 @@
       (net 1 "+12V") (pinfunction "Pin_3") (pintype "passive") (tstamp d136087a-4ba2-40ba-9041-fad02843cee4))
     (pad "4" thru_hole oval (at 7.62 0 90) (size 1.74 2.19) (drill 1.19) (layers "*.Cu" "*.Mask")
       (net 2 "GND") (pinfunction "Pin_4") (pintype "passive") (tstamp a3dc208a-e05d-4fe4-b89d-a5c886e65118))
-    (model "${KICAD6_3DMODEL_DIR}/Connector_Molex.3dshapes/Molex_KK-254_AE-6410-04A_1x04_P2.54mm_Vertical.wrl"
-      (offset (xyz 0 0 0))
+    (model "C:/Users/niels/Downloads/LIB_47053-3000/47053-3000/3D/47053-3000.stp"
+      (offset (xyz 3.8 0 2.5))
       (scale (xyz 1 1 1))
-      (rotate (xyz 0 0 0))
+      (rotate (xyz -90 0 180))
     )
   )
 
@@ -7027,11 +7027,11 @@
     (tags "kb_params=eyJBbGlnbm1lbnRDaG9pY2UiOiAiQ2VudGVyIiwgIkNhcExlZnRDaG9pY2UiOiAiWyIsICJDYXBSaWdodENob2ljZSI6ICJdIiwgIkZvbnRDb21ib0JveCI6ICJVYnVudHVNb25vLUIiLCAiSGVpZ2h0Q3RybCI6ICIxLjIiLCAiTGF5ZXJDb21ib0JveCI6ICJGLlNpbGtTIiwgIk11bHRpTGluZVRleHQiOiAiREJHIiwgIlBhZGRpbmdCb3R0b21DdHJsIjogIjUiLCAiUGFkZGluZ0xlZnRDdHJsIjogIjUiLCAiUGFkZGluZ1JpZ2h0Q3RybCI6ICI1IiwgIlBhZGRpbmdUb3BDdHJsIjogIjUiLCAiV2lkdGhDdHJsIjogIiJ9")
     (attr board_only exclude_from_pos_files exclude_from_bom)
     (fp_text reference "kibuzzard-6446408C" (at 0 -4.06019 90) (layer "F.SilkS") hide
-        (effects (font (size 0 0)))
+        (effects (font (size 0 0) (thickness 0.15)))
       (tstamp cc1b5199-7c18-40aa-910f-177ebefbf275)
     )
     (fp_text value "G***" (at 0 4.06019 90) (layer "F.SilkS") hide
-        (effects (font (size 0 0)))
+        (effects (font (size 0 0) (thickness 0.15)))
       (tstamp a1b26d69-7d2e-4cd1-b3f6-f971f665cc19)
     )
     (fp_poly
@@ -7301,10 +7301,10 @@
       (net 1 "+12V") (pinfunction "Pin_3") (pintype "passive") (tstamp 6f7302c4-0615-4c6d-94d9-be2403ce8b3d))
     (pad "4" thru_hole oval (at 7.62 0 90) (size 1.74 2.19) (drill 1.19) (layers "*.Cu" "*.Mask")
       (net 2 "GND") (pinfunction "Pin_4") (pintype "passive") (tstamp 6b6f9c4f-e1a7-4241-a475-1173674a79d9))
-    (model "${KICAD6_3DMODEL_DIR}/Connector_Molex.3dshapes/Molex_KK-254_AE-6410-04A_1x04_P2.54mm_Vertical.wrl"
-      (offset (xyz 0 0 0))
+    (model "C:/Users/niels/Downloads/LIB_47053-3000/47053-3000/3D/47053-3000.stp"
+      (offset (xyz 3.8 0 2.5))
       (scale (xyz 1 1 1))
-      (rotate (xyz 0 0 0))
+      (rotate (xyz -90 0 180))
     )
   )
 
