@@ -84,6 +84,7 @@ void setup()
   /* GPIO init. values */
   digitalWrite(peltierCool, LOW);
   digitalWrite(peltierHeat, LOW);
+  digitalWrite(motorEnable, LOW);
 
   /* Stepper task setup */
   xTaskCreatePinnedToCore(
@@ -102,7 +103,7 @@ void setup()
   #endif
 
   /* Precipitation Stepper */
-  stepper.setMaxSpeed(400); 
+  stepper.setMaxSpeed(6400); 
   stepper.setAcceleration(30000); 
   stepper.moveTo(300); 
   
@@ -117,86 +118,105 @@ void setup()
 
 void loop() 
 {
-  //Code to test temperature PoC
-  int serialreadout = Serial.read();
-  if(serialreadout > 0)
+
+  while(WiFi.status() != WL_CONNECTED) 
   {
-    Serial.println(serialreadout);
-    switch(serialreadout)
+    delay(1000);
+    #ifdef DEBUG
+      Serial.println("Connecting to WiFi..");
+    #endif
+  }
+
+  while(WiFi.status() == WL_CONNECTED) 
+  {
+    //Code to test temperature PoC
+    int serialreadout = Serial.read();
+    if(serialreadout > 0)
     {
-      case 48:
-        weatherStation.targetTemp = 17.0f;
-        break;
-      case 49:
-        weatherStation.targetTemp = 19.0f;
-        break;
-      case 50:
-        weatherStation.targetTemp = 21.0f;
-        break;
-      case 51:
-        weatherStation.targetTemp = 23.0f;
-        break;
-      case 52:
-        weatherStation.targetTemp = 25.0f;
-        break;
-      case 53:
-        weatherStation.targetTemp = 30.0f;
-        break;
-      case 54:
-        weatherStation.targetTemp = 35.0f;
-        break;
-      case 55:
-        weatherStation.targetTemp = 40.0f;
-        break;
-    };
+      Serial.println(serialreadout);
+      switch(serialreadout)
+      {
+        case 48:
+          weatherStation.targetTemp = 17.0f;
+          stepper.setMaxSpeed(50); 
+          break;
+        case 49:
+          weatherStation.targetTemp = 19.0f;
+          stepper.setMaxSpeed(100); 
+          break;
+        case 50:
+          weatherStation.targetTemp = 21.0f;
+          stepper.setMaxSpeed(200); 
+          break;
+        case 51:
+          weatherStation.targetTemp = 23.0f;
+          stepper.setMaxSpeed(400); 
+          break;
+        case 52:
+          weatherStation.targetTemp = 25.0f;
+          stepper.setMaxSpeed(800); 
+          break;
+        case 53:
+          weatherStation.targetTemp = 30.0f;
+          stepper.setMaxSpeed(1600); 
+          break;
+        case 54:
+          weatherStation.targetTemp = 35.0f;
+          stepper.setMaxSpeed(3200); 
+          break;
+        case 55:
+          weatherStation.targetTemp = 40.0f;
+          stepper.setMaxSpeed(6400); 
+          break;
+      };
+    }
+
+    /* Handle updating current weather report */
+    if(APITimeout(weatherStation.APITimeout)) updateWeatherReports();
+
+    /* Handle updating temperature reading */
+    if(tempTimeout(TEMP_TIMEOUT)) updateTemperature();
+
+    /* Update relevant flags */
+    if(digitalRead(buttonCurrentWeather)) 
+    {
+      esp_timer_start_once(timerWeatherFlags, weatherStation.timeout * 1000);
+      flagCurrentWeather = true;
+      doOnceFlag = true;
+    }
+
+    if(digitalRead(buttonUpcomingWeather))
+    {
+      esp_timer_start_once(timerWeatherFlags, weatherStation.timeout * 1000);
+      flagUpcomingWeather = true;
+      doOnceFlag = true;
+    }
+
+    /* Execute state */
+    if(flagCurrentWeather) displayWeather(&weatherReportCurrent);
+    else if(flagUpcomingWeather) displayWeather(&weatherReportUpcoming);
+    else idle();
   }
-
-  /* Handle updating current weather report */
-  if(APITimeout(weatherStation.APITimeout)) updateWeatherReports();
-
-  /* Handle updating temperature reading */
-  if(tempTimeout(TEMP_TIMEOUT)) updateTemperature();
-
-  /* Update relevant flags */
-  if(digitalRead(buttonCurrentWeather)) 
-  {
-    esp_timer_start_once(timerWeatherFlags, weatherStation.timeout * 1000);
-    flagCurrentWeather = true;
-    doOnceFlag = true;
-  }
-
-  if(digitalRead(buttonUpcomingWeather))
-  {
-    esp_timer_start_once(timerWeatherFlags, weatherStation.timeout * 1000);
-    flagUpcomingWeather = true;
-    doOnceFlag = true;
-  }
-
-  /* Execute state */
-  if(flagCurrentWeather) displayWeather(&weatherReportCurrent);
-  else if(flagUpcomingWeather) displayWeather(&weatherReportUpcoming);
-  else idle();
 }
 
 /*
  * TODO:
  *  
- *  Add map from mm(?) to stepper speed
- * 
+ *  DOUBLE CHECK PINMODES SMH
+ *  
+ *  Add temperature map
+ *  
  *  Add to app: 
  *    WiFi connection listpicker (I guess select SSID and enter key? Has to be a better way maybe?)
  *    Training mode (Set temp, wind, precip, slipperiness)
  *    Actually use the selected language in the app
  *  
  *  Redo slipperiness map
- * 
+ *  
  *  Add Doxygen documentation perhaps?
  * 
  *  Redo file/include structure (Seperate files cuz this sucks rn :'))
  * 
- *  Add statusled logic
- *  
- *  Add vibration motor logic
- * 
+ *  Add statusled logic 
  * 
  */

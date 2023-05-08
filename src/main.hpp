@@ -45,6 +45,15 @@
 #define languageCharacteristicUUID "1289b3f8-c715-11ed-afa1-0242ac120002"
 #define locationCharacteristicUUID "1289b81c-c715-11ed-afa1-0242ac120002"
 
+#define STEPPER_MAX_SPEED 6400
+#define STEPPER_MIN_SPEED 400
+
+#define MAX_RAIN_HOURLY 10 //mm
+#define MAX_SNOW_HOURLY 100 //mm
+
+#define RAIN_FLAG true
+#define SNOW_FLAG false 
+
 /* Weatherstation data-entry */
 class weatherstationObject //Contains default values
 {
@@ -164,6 +173,8 @@ void loop();
 void setLocation(String location);
 void setLanguage(String language);
 void setWindSpeedFan(float windSpeed);
+float mapFloat(float x, float in_min, float in_max, float out_min, float out_max);
+void setStepperSpeed(float precipitationAmount, int maxPrecipitationHourly);
 
 /* Function definitions */
 String weatherstationObject::callOpenWeatherMapAPI(String endpoint)
@@ -215,11 +226,14 @@ int initGPIO()
   ledcSetup(windFanPWMChannel, fanPWMFrequency, fanPWMResolution);
   ledcAttachPin(windFanPWMPin, windFanPWMChannel);
 
-
   /* Init servo */
 	ESP32PWM::allocateTimer(2);
   slipperinessDiscServo.setPeriodHertz(50);
   if(!slipperinessDiscServo.attach(servoPin)) return -1;
+  pinMode(enablePin, OUTPUT);
+
+  /* Init vibration motor */
+  pinMode(motorEnable, OUTPUT);
 
   return 1;
 }
@@ -633,6 +647,7 @@ void idle()
   /* Disable precipitation stepper */
   digitalWrite(enablePin, HIGH);
   vTaskSuspend(stepperTask);
+  // stepper.moveTo(Een start locatie ofzo); 
 
   /* Disable wind */
   ledcWrite(windFanPWMChannel, 0);
@@ -648,13 +663,13 @@ void idle()
 void displayPrecipitation(void *pvParameters)
 {
   #ifdef DEBUG
-    Serial.println("Task for driving steppermotor running on core " + xPortGetCoreID());
+    Serial.print("Task for driving steppermotor running on core ");
+    Serial.println(xPortGetCoreID());
   #endif
   while(true)
   {
-      digitalWrite(enablePin, LOW);
       if (stepper.distanceToGo() == 0) stepper.moveTo(-stepper.currentPosition()); 
-      stepper.run(); 
+      stepper.run();
   }
 }
 
@@ -669,12 +684,26 @@ void displayWeather(weatherReportObject *weatherReport)
     // Serial.println("ºC");
   #endif
 
+  /* Disable vibration feedback motor */
+  digitalWrite(motorEnable, LOW);
+
+  /* Handle events that only need to happen once per buttonpress */
   if(doOnceFlag)
   {
+    /* Trigger vibration feedback motor */
+    digitalWrite(motorEnable, HIGH);
+    #ifdef DEBUG
+      Serial.println("Enabling vibration motor");
+    #endif
+
     /* Handle wind */
     setWindSpeedFan(weatherReport->windSpeed);
 
     /* Handle precipitation */
+    digitalWrite(enablePin, LOW);
+    float highestPrecipitation = (weatherReport->rainLevel < weatherReport->snowLevel) ? SNOW_FLAG : RAIN_FLAG;
+    if(highestPrecipitation == RAIN_FLAG) setStepperSpeed(weatherReport->rainLevel, MAX_RAIN_HOURLY);
+    else if(highestPrecipitation == SNOW_FLAG) setStepperSpeed(weatherReport->snowLevel, MAX_SNOW_HOURLY);
     vTaskResume(stepperTask);
 
     /* Handle slipperiness */
@@ -686,6 +715,17 @@ void displayWeather(weatherReportObject *weatherReport)
     }
     doOnceFlag = false;
   }
+}
+
+void setStepperSpeed(float precipitationAmount, int maxPrecipitationHourly)
+{
+  uint16_t stepperSpeed = mapFloat(precipitationAmount, 0, maxPrecipitationHourly, STEPPER_MIN_SPEED, STEPPER_MAX_SPEED);
+  if(precipitationAmount == 0.00) stepperSpeed = 0;
+  stepper.setMaxSpeed(stepperSpeed);
+  #ifdef DEBUG
+    Serial.print("Set stepper speed to ");
+    Serial.println(stepperSpeed);
+  #endif
 }
 
 void updateWeatherReports()
