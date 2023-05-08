@@ -3,6 +3,10 @@
 
 void setup() 
 {
+    /* Init neopixel status LED */
+  FastLED.addLeds<WS2812B, neopixelPin, GRB>(statusNeoPixel, 1);
+  setStatusLED(CRGB::Red);
+
 
   /* Serial setup */
   Serial.begin(115200);
@@ -45,6 +49,7 @@ void setup()
       Serial.println("Connecting to WiFi..");
     #endif
   }
+  setStatusLED(CRGB::Orange);
   
   #ifdef DEBUG
     Serial.println("Connected to the WiFi network");
@@ -114,6 +119,8 @@ void setup()
     Serial.println("Weatherstation initialization completed");
   #endif
 
+  setStatusLED(CRGB::Green);
+
 }
 
 void loop() 
@@ -121,6 +128,7 @@ void loop()
 
   while(WiFi.status() != WL_CONNECTED) 
   {
+    setStatusLED(CRGB::Red);
     delay(1000);
     #ifdef DEBUG
       Serial.println("Connecting to WiFi..");
@@ -139,34 +147,42 @@ void loop()
         case 48:
           weatherStation.targetTemp = 17.0f;
           stepper.setMaxSpeed(50); 
+          ledcWrite(windFanPWMChannel, 0);
           break;
         case 49:
           weatherStation.targetTemp = 19.0f;
           stepper.setMaxSpeed(100); 
+          ledcWrite(windFanPWMChannel, 10);
           break;
         case 50:
           weatherStation.targetTemp = 21.0f;
           stepper.setMaxSpeed(200); 
+          ledcWrite(windFanPWMChannel, 25);
           break;
         case 51:
           weatherStation.targetTemp = 23.0f;
           stepper.setMaxSpeed(400); 
+          ledcWrite(windFanPWMChannel, 50);
           break;
         case 52:
           weatherStation.targetTemp = 25.0f;
           stepper.setMaxSpeed(800); 
+          ledcWrite(windFanPWMChannel, 100);
           break;
         case 53:
           weatherStation.targetTemp = 30.0f;
           stepper.setMaxSpeed(1600); 
+          ledcWrite(windFanPWMChannel, 160);
           break;
         case 54:
           weatherStation.targetTemp = 35.0f;
           stepper.setMaxSpeed(3200); 
+          ledcWrite(windFanPWMChannel, 200);
           break;
         case 55:
           weatherStation.targetTemp = 40.0f;
           stepper.setMaxSpeed(6400); 
+          ledcWrite(windFanPWMChannel, 255);
           break;
       };
     }
@@ -178,14 +194,14 @@ void loop()
     if(tempTimeout(TEMP_TIMEOUT)) updateTemperature();
 
     /* Update relevant flags */
-    if(digitalRead(buttonCurrentWeather)) 
+    if(digitalRead(buttonCurrentWeather) && !(digitalRead(buttonUpcomingWeather))) 
     {
       esp_timer_start_once(timerWeatherFlags, weatherStation.timeout * 1000);
       flagCurrentWeather = true;
       doOnceFlag = true;
     }
 
-    if(digitalRead(buttonUpcomingWeather))
+    if(digitalRead(buttonUpcomingWeather) && !(digitalRead(buttonCurrentWeather)))
     {
       esp_timer_start_once(timerWeatherFlags, weatherStation.timeout * 1000);
       flagUpcomingWeather = true;

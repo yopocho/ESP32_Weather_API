@@ -14,6 +14,7 @@
 #include <Preferences.h>
 #include <AccelStepper.h>
 #include <max6675.h>
+#include <FastLED.h>
 #include "esp_timer.h"
 #include "sdkconfig.h"
 
@@ -120,6 +121,7 @@ const int peltierCool = 46;
 
 /* Pin def. for Neopixel data */
 const int neopixelPin = 16;
+CRGB statusNeoPixel[1];
 
 /* Pin def. servo */
 const int servoPin = 15;
@@ -175,6 +177,7 @@ void setLanguage(String language);
 void setWindSpeedFan(float windSpeed);
 float mapFloat(float x, float in_min, float in_max, float out_min, float out_max);
 void setStepperSpeed(float precipitationAmount, int maxPrecipitationHourly);
+void setStatusLED(CRGB color);
 
 /* Function definitions */
 String weatherstationObject::callOpenWeatherMapAPI(String endpoint)
@@ -655,6 +658,9 @@ void idle()
   /* Update flag(s) */
   doOnceFlag = false;
 
+  /* Ensure vibration motor is off */
+  digitalWrite(motorEnable, LOW);
+
   /* Handle BLE */
   BLE.poll();
 }
@@ -806,5 +812,11 @@ void setWindSpeedFan(float windSpeed)
   #endif
 }
 
+void setStatusLED(CRGB color)
+{
+  statusNeoPixel[0] = color;
+  FastLED.show();
+  FastLED.setBrightness(255);
+}
 #endif
 
