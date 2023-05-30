@@ -39,7 +39,7 @@ void setup()
     #endif
   }
 
-    /* Wifi setup */
+  /* Wifi setup */
   WiFi.begin(ssid, password);
  
   while (WiFi.status() != WL_CONNECTED) {
@@ -49,12 +49,15 @@ void setup()
       Serial.println("Connecting to WiFi..");
     #endif
   }
-  setStatusLED(CRGB::Orange);
+  setStatusLED(CRGB::DarkOrange);
   
   #ifdef DEBUG
     Serial.println("Connected to the WiFi network");
-  #endif
+  #endif 
 
+  WiFi.onEvent(WifiConnected, ARDUINO_EVENT_WIFI_STA_CONNECTED);
+  WiFi.onEvent(WifiDisconnected, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
+ 
   /* Init one-shot timers for display timeout */
   initTimers();
 
@@ -90,6 +93,7 @@ void setup()
   digitalWrite(peltierCool, LOW);
   digitalWrite(peltierHeat, LOW);
   digitalWrite(motorEnable, LOW);
+  ledcWrite(peltierFanPWMChannel, 0);
 
   /* Stepper task setup */
   xTaskCreatePinnedToCore(
@@ -126,67 +130,16 @@ void setup()
 void loop() 
 {
 
-  while(WiFi.status() != WL_CONNECTED) 
+  if(WiFi.status() != WL_CONNECTED) 
   {
-    setStatusLED(CRGB::Red);
     delay(1000);
     #ifdef DEBUG
       Serial.println("Connecting to WiFi..");
     #endif
   }
 
-  while(WiFi.status() == WL_CONNECTED) 
+  while(WiFi.status() == WL_CONNECTED) //TODO: Hier moet wel iets mee wss
   {
-    //Code to test temperature PoC
-    int serialreadout = Serial.read();
-    if(serialreadout > 0)
-    {
-      Serial.println(serialreadout);
-      switch(serialreadout)
-      {
-        case 48:
-          weatherStation.targetTemp = 17.0f;
-          stepper.setMaxSpeed(50); 
-          ledcWrite(windFanPWMChannel, 0);
-          break;
-        case 49:
-          weatherStation.targetTemp = 19.0f;
-          stepper.setMaxSpeed(100); 
-          ledcWrite(windFanPWMChannel, 10);
-          break;
-        case 50:
-          weatherStation.targetTemp = 21.0f;
-          stepper.setMaxSpeed(200); 
-          ledcWrite(windFanPWMChannel, 25);
-          break;
-        case 51:
-          weatherStation.targetTemp = 23.0f;
-          stepper.setMaxSpeed(400); 
-          ledcWrite(windFanPWMChannel, 50);
-          break;
-        case 52:
-          weatherStation.targetTemp = 25.0f;
-          stepper.setMaxSpeed(800); 
-          ledcWrite(windFanPWMChannel, 100);
-          break;
-        case 53:
-          weatherStation.targetTemp = 30.0f;
-          stepper.setMaxSpeed(1600); 
-          ledcWrite(windFanPWMChannel, 160);
-          break;
-        case 54:
-          weatherStation.targetTemp = 35.0f;
-          stepper.setMaxSpeed(3200); 
-          ledcWrite(windFanPWMChannel, 200);
-          break;
-        case 55:
-          weatherStation.targetTemp = 40.0f;
-          stepper.setMaxSpeed(6400); 
-          ledcWrite(windFanPWMChannel, 255);
-          break;
-      };
-    }
-
     /* Handle updating current weather report */
     if(APITimeout(weatherStation.APITimeout)) updateWeatherReports();
 
@@ -199,18 +152,21 @@ void loop()
       esp_timer_start_once(timerWeatherFlags, weatherStation.timeout * 1000);
       flagCurrentWeather = true;
       doOnceFlag = true;
+      setStatusLED(CRGB::DarkOrange);
     }
 
-    if(digitalRead(buttonUpcomingWeather) && !(digitalRead(buttonCurrentWeather)))
+   if(digitalRead(buttonUpcomingWeather) && !(digitalRead(buttonCurrentWeather)))
     {
       esp_timer_start_once(timerWeatherFlags, weatherStation.timeout * 1000);
       flagUpcomingWeather = true;
       doOnceFlag = true;
+      setStatusLED(CRGB::DarkOrange);
     }
 
     /* Execute state */
     if(flagCurrentWeather) displayWeather(&weatherReportCurrent);
     else if(flagUpcomingWeather) displayWeather(&weatherReportUpcoming);
+    else if(flagTrainingWeather) displayWeather(&weatherReportTraining);
     else idle();
   }
 }
@@ -218,21 +174,19 @@ void loop()
 /*
  * TODO:
  *  
- *  DOUBLE CHECK PINMODES SMH
+ *  idee van gastcollegegast: ipv direct Serial.println enzo, gooi alles in een queue met een timestamp en laat een task het uitlezen wanneer er tijd is (Dit saved runtime zelfs tijdens production!)
  *  
- *  Add temperature map
+ *  DOUBLE CHECK PINMODES SMH
  *  
  *  Add to app: 
  *    WiFi connection listpicker (I guess select SSID and enter key? Has to be a better way maybe?)
  *    Training mode (Set temp, wind, precip, slipperiness)
  *    Actually use the selected language in the app
  *  
- *  Redo slipperiness map
+ *  Redo slipperiness map?
  *  
  *  Add Doxygen documentation perhaps?
  * 
- *  Redo file/include structure (Seperate files cuz this sucks rn :'))
- * 
- *  Add statusled logic 
+ *  Redo file/include structure (Seperate files cuz this sucks rn :'))?
  * 
  */

@@ -30,11 +30,12 @@
 #define ERR_INVALID_INPUT "Input object invalid"
 #define ERR_INVALID_DATA "Given JSON object does not contain valid data"
 
+//TODO: typdef enum hiervan maken? Bij servoset gwn *90 graden ;)
 #define NOT_SLIPPERY_POS 0
-#define SLIGHTLY_SLIPPERY_POS 45
-#define QUITE_SLIPPERY_POS 90
-#define REALLY_SLIPPERY_POS 135
-#define INSANELY_SLIPPERY_POS 180
+#define SLIGHTLY_SLIPPERY_POS 90
+#define QUITE_SLIPPERY_POS 180
+#define REALLY_SLIPPERY_POS 0 //TODO: Update code to reflect the 180deg servo
+#define INSANELY_SLIPPERY_POS 0 //TODO: Update code to reflect the 180deg servo
 
 #define CHARACTERISTIC_SIZE 512 //BLE
 
@@ -45,6 +46,11 @@
 #define serviceUUID "1289b0a6-c715-11ed-afa1-0242ac120002"
 #define languageCharacteristicUUID "1289b3f8-c715-11ed-afa1-0242ac120002"
 #define locationCharacteristicUUID "1289b81c-c715-11ed-afa1-0242ac120002"
+#define temperatureCharacteristicUUID "fc4971a2-fec6-11ed-be56-0242ac120002"
+#define precipitationCharacteristicUUID "fc4973e6-fec6-11ed-be56-0242ac120002"
+#define windspeedCharacteristicUUID "fc4975a8-fec6-11ed-be56-0242ac120002"
+#define slipperinessCharacteristicUUID "fc497724-fec6-11ed-be56-0242ac120002"
+#define trainingEnableCharacteristicUUID "5fd4fca6-feee-11ed-be56-0242ac120002"
 
 #define STEPPER_MAX_SPEED 6400
 #define STEPPER_MIN_SPEED 400
@@ -61,10 +67,10 @@ class weatherstationObject //Contains default values
   private:
     const String key = "63463198104ddccafc13815f6d61e642";
   public:
-    const uint32_t APITimeout = 30000;
+    const uint32_t APITimeout = 30000; //ms
     float measuredTemp = 0.0f;
     float targetTemp = 20.0f; 
-    uint32_t timeout = 10000;
+    uint32_t timeout = 10000; //ms
     const String endpointCurrent = "http://api.openweathermap.org/data/2.5/weather?";
     const String endpoint3hour5days = "http://api.openweathermap.org/data/2.5/forecast?";
     String lattitude = "52.0000";
@@ -88,8 +94,7 @@ typedef struct
   float rainLevel = 0.0;
   float snowLevel = 0.0;
 } weatherReportObject;
-weatherReportObject weatherReportCurrent;
-weatherReportObject weatherReportUpcoming;
+weatherReportObject weatherReportCurrent, weatherReportUpcoming, weatherReportTraining;
 
 /* WiFi def. */
 const char* ssid = "Niels hotspot";
@@ -100,10 +105,6 @@ const int thermocoupleCLK = 12;
 const int thermocoupleCS = 10;
 const int thermocoupleMISO = 11;
 MAX6675 thermocouple(thermocoupleCLK, thermocoupleCS, thermocoupleMISO);
-// const int oneWireBus = 4;  
-// OneWire oneWire(oneWireBus);
-// DallasTemperature sensors(&oneWire);
-// NonBlockingDallas tempSensor(&sensors);
 
 /* Pin def. for heatsink fan control */
 const int peltierFanPWMPin = 6;
@@ -122,6 +123,7 @@ const int peltierCool = 46;
 /* Pin def. for Neopixel data */
 const int neopixelPin = 16;
 CRGB statusNeoPixel[1];
+bool flagStatusLED = false;
 
 /* Pin def. servo */
 const int servoPin = 15;
@@ -151,14 +153,20 @@ uint32_t previousMillisTemp = 0;
 esp_timer_handle_t timerWeatherFlags;
 volatile bool flagCurrentWeather = false;
 volatile bool flagUpcomingWeather = false;
+volatile bool flagTrainingWeather = false;
 
 /* Millis delay */
 uint32_t previousMillis = 0;
 
 /* Bluetooth */
 BLEService weatherstationService(serviceUUID); // create service
-BLEStringCharacteristic languageCharacteristic(languageCharacteristicUUID, BLERead | BLEWrite | BLENotify, CHARACTERISTIC_SIZE);
-BLEStringCharacteristic locationCharacteristic(locationCharacteristicUUID, BLERead | BLEWrite | BLENotify, CHARACTERISTIC_SIZE);
+BLEStringCharacteristic languageCharacteristic      (languageCharacteristicUUID,        BLERead | BLEWrite | BLENotify, CHARACTERISTIC_SIZE);
+BLEStringCharacteristic locationCharacteristic      (locationCharacteristicUUID,        BLERead | BLEWrite | BLENotify, CHARACTERISTIC_SIZE);
+BLEStringCharacteristic temperatureCharacteristic   (temperatureCharacteristicUUID,     BLERead | BLEWrite | BLENotify, CHARACTERISTIC_SIZE);
+BLEStringCharacteristic precipitationCharaceristic  (precipitationCharacteristicUUID,   BLERead | BLEWrite | BLENotify, CHARACTERISTIC_SIZE);
+BLEStringCharacteristic windspeedCharacteristic     (windspeedCharacteristicUUID,       BLERead | BLEWrite | BLENotify, CHARACTERISTIC_SIZE);
+BLEStringCharacteristic slipperinessCharacteristic  (slipperinessCharacteristicUUID,    BLERead | BLEWrite | BLENotify, CHARACTERISTIC_SIZE);
+BLEStringCharacteristic trainingEnableCharacteristic(trainingEnableCharacteristicUUID,  BLERead | BLEWrite | BLENotify, CHARACTERISTIC_SIZE);
 
 /* EEPROM */
 Preferences preferences;
@@ -178,6 +186,8 @@ void setWindSpeedFan(float windSpeed);
 float mapFloat(float x, float in_min, float in_max, float out_min, float out_max);
 void setStepperSpeed(float precipitationAmount, int maxPrecipitationHourly);
 void setStatusLED(CRGB color);
+void WiFiStationConnected(WiFiEvent_t event, WiFiEventInfo_t info);
+void WifiDisconnected(WiFiEvent_t event, WiFiEventInfo_t info);
 
 /* Function definitions */
 String weatherstationObject::callOpenWeatherMapAPI(String endpoint)
@@ -261,7 +271,6 @@ DynamicJsonDocument parseJSON(String payload)
 
 void controlLoop(float temp)
 {
-
   bool higherFlag = false;
   bool lowerFlag = false;
 
@@ -277,7 +286,8 @@ void controlLoop(float temp)
   {
     digitalWrite(peltierCool, LOW);
     digitalWrite(peltierHeat, HIGH);
-    digitalWrite(peltierFanPWMPin, LOW); 
+    ledcWrite(peltierFanPWMChannel, 0);
+    // digitalWrite(peltierFanPWMPin, LOW); 
     higherFlag = false;
     #ifdef DEBUG
       // Serial.println("Raising temperature");
@@ -287,7 +297,8 @@ void controlLoop(float temp)
   {
     digitalWrite(peltierHeat, LOW);
     digitalWrite(peltierCool, HIGH);
-    digitalWrite(peltierFanPWMPin, HIGH); 
+    ledcWrite(peltierFanPWMChannel, 255);
+    // digitalWrite(peltierFanPWMPin, HIGH); 
     lowerFlag = false;
     #ifdef DEBUG
       // Serial.println("Lowering temperature");
@@ -298,6 +309,7 @@ void controlLoop(float temp)
     digitalWrite(peltierCool, LOW);
     digitalWrite(peltierHeat, LOW);
     digitalWrite(peltierFanPWMPin, LOW); 
+    setStatusLED(CRGB::Green);
   }
 }
 
@@ -307,7 +319,8 @@ void updateTemperature()
   weatherStation.measuredTemp = thermocouple.readCelsius();
   #ifdef DEBUG
     Serial.print("Measured temperature: ");
-    Serial.println(weatherStation.measuredTemp);
+    Serial.print(weatherStation.measuredTemp);
+    Serial.println("ºC");
   #endif
 }
 
@@ -490,6 +503,7 @@ String getWeatherDescription(DynamicJsonDocument weatherReport)
   return ERR_INVALID_DATA;
 }
 
+
 float getRainLevel(DynamicJsonDocument weatherReport)
 {
   if((weatherReport["cnt"].as<int>() == weatherStation.stepCount.toInt()) && (weatherReport["cod"].as<int>() == 200)) // Upcoming weather
@@ -503,6 +517,7 @@ float getRainLevel(DynamicJsonDocument weatherReport)
   }
   return -1.0f;
 }
+
 
 float getSnowLevel(DynamicJsonDocument weatherReport)
 {
@@ -518,6 +533,7 @@ float getSnowLevel(DynamicJsonDocument weatherReport)
   return -1.0f;
 }
 
+
 float getWindSpeed(DynamicJsonDocument weatherReport)
 {
   if((weatherReport["cnt"].as<int>() == weatherStation.stepCount.toInt()) && (weatherReport["cod"].as<int>() == 200)) // Upcoming weather
@@ -532,23 +548,69 @@ float getWindSpeed(DynamicJsonDocument weatherReport)
   return -1.0f;
 }
 
+
 void dataHandlerLanguageCharacteristic(BLEDevice central, BLECharacteristic characteristic) {
   String language = languageCharacteristic.value();
   #ifdef DEBUG
     Serial.print("Characteristic event, written: ");
     Serial.println(language);
   #endif
-  setLanguage(language);
-}
-
-
-void setLanguage(String language)
-{
   preferences.putString("Language", language);
   weatherStation.language = preferences.getString("Language", "NaN");
   #ifdef DEBUG
     Serial.print("New language: ");
     Serial.println(preferences.getString("Language", "NaN"));
+  #endif
+}
+
+
+void dataHandlerTemperatureCharacteristic(BLEDevice central, BLECharacteristic characteristic) {
+  String trainingTargetTemp = temperatureCharacteristic.value();
+  #ifdef DEBUG
+    Serial.print("Characteristic event, written: ");
+    Serial.println(trainingTargetTemp);
+  #endif
+  weatherReportTraining.windChillTemperature = trainingTargetTemp.toFloat();
+}
+
+
+void dataHandlerPrecipitationCharacteristic(BLEDevice central, BLECharacteristic characteristic) {
+  String trainingPrecipitation = precipitationCharaceristic.value();
+  #ifdef DEBUG
+    Serial.print("Characteristic event, written: ");
+    Serial.println(trainingPrecipitation);
+  #endif
+  weatherReportTraining.rainLevel = trainingPrecipitation.toFloat();
+}
+
+
+void dataHandlerWindspeedCharacteristic(BLEDevice central, BLECharacteristic characteristic) {
+  String trainingWindspeed = windspeedCharacteristic.value();
+  #ifdef DEBUG
+    Serial.print("Characteristic event, written: ");
+    Serial.println(trainingWindspeed);
+  #endif
+  weatherReportTraining.windSpeed = trainingWindspeed.toFloat();
+}
+
+
+void dataHandlerSlipperinessCharacteristic(BLEDevice central, BLECharacteristic characteristic) {
+  String trainingSlipperiness = slipperinessCharacteristic.value();
+  #ifdef DEBUG
+    Serial.print("Characteristic event, written: ");
+    Serial.println(trainingSlipperiness);
+  #endif
+  weatherReportTraining.weatherID = trainingSlipperiness.toInt();
+}
+
+
+void dataHandlerTrainingEnableCharacteristic(BLEDevice central, BLECharacteristic characteristic) {
+  flagTrainingWeather = true;
+  doOnceFlag = true;
+  esp_timer_start_once(timerWeatherFlags, weatherStation.timeout * 1000);
+  setStatusLED(CRGB::SkyBlue);
+  #ifdef DEBUG
+    Serial.println("Starting trainsmode");
   #endif
 }
 
@@ -600,10 +662,20 @@ bool initBLE()
   BLE.setAdvertisedService(weatherstationService);
   weatherstationService.addCharacteristic(languageCharacteristic);
   weatherstationService.addCharacteristic(locationCharacteristic);
+  weatherstationService.addCharacteristic(temperatureCharacteristic);
+  weatherstationService.addCharacteristic(precipitationCharaceristic);
+  weatherstationService.addCharacteristic(windspeedCharacteristic);
+  weatherstationService.addCharacteristic(slipperinessCharacteristic);
+  weatherstationService.addCharacteristic(trainingEnableCharacteristic);
   BLE.setEventHandler(BLEConnected, connectHandlerBLE);
   BLE.setEventHandler(BLEDisconnected, disconnectHandlerBLE);
   languageCharacteristic.setEventHandler(BLEWritten, dataHandlerLanguageCharacteristic);
   locationCharacteristic.setEventHandler(BLEWritten, dataHandlerLocationCharacteristic);
+  temperatureCharacteristic.setEventHandler(BLEWritten, dataHandlerTemperatureCharacteristic);
+  precipitationCharaceristic.setEventHandler(BLEWritten, dataHandlerPrecipitationCharacteristic);
+  windspeedCharacteristic.setEventHandler(BLEWritten, dataHandlerWindspeedCharacteristic);
+  slipperinessCharacteristic.setEventHandler(BLEWritten, dataHandlerSlipperinessCharacteristic);
+  trainingEnableCharacteristic.setEventHandler(BLEWritten, dataHandlerTrainingEnableCharacteristic);
   BLE.addService(weatherstationService);
   BLE.advertise();
   return true;
@@ -629,6 +701,11 @@ void IRAM_ATTR ISRWeatherFlags(void *arg)
 {
   flagCurrentWeather = false;
   flagUpcomingWeather = false;
+  flagTrainingWeather = false;
+  flagStatusLED = true;
+  #ifdef DEBUG
+    Serial.println("Finished displaying the weather");
+  #endif
 }
 
 
@@ -658,6 +735,13 @@ void idle()
   /* Update flag(s) */
   doOnceFlag = false;
 
+  /* Set Status LED */
+  if(flagStatusLED) 
+  {
+    setStatusLED(CRGB::Green);
+    flagStatusLED = false;
+  }
+
   /* Ensure vibration motor is off */
   digitalWrite(motorEnable, LOW);
 
@@ -681,9 +765,10 @@ void displayPrecipitation(void *pvParameters)
 
 
 void displayWeather(weatherReportObject *weatherReport)
-{
+{ 
   /* Handle temperature */
   // weatherStation.targetTemp = weatherReport->windChillTemperature; GEVOEL IS NIET LINEAIR, MOET EEN f(x) FUNCTIE WORDEN
+  weatherStation.targetTemp = mapFloat(weatherReport->windChillTemperature, -10, 40, 10, 40);
   controlLoop(weatherStation.measuredTemp);
   #ifdef DEBUG
     // Serial.print(weatherStation.measuredTemp);
@@ -696,6 +781,11 @@ void displayWeather(weatherReportObject *weatherReport)
   /* Handle events that only need to happen once per buttonpress */
   if(doOnceFlag)
   {
+    #ifdef DEBUG
+      Serial.println("Now displaying this weather:");
+      Serial.print("Rain: ");
+      Serial.println(weatherReport->rainLevel);
+    #endif
     /* Trigger vibration feedback motor */
     digitalWrite(motorEnable, HIGH);
     #ifdef DEBUG
@@ -719,6 +809,11 @@ void displayWeather(weatherReportObject *weatherReport)
         Serial.println("Error: weatherID not valid");
       #endif
     }
+
+    #ifdef DEBUG
+      Serial.print("Set targetTemp: ");
+      Serial.println(weatherStation.targetTemp);
+    #endif
     doOnceFlag = false;
   }
 }
@@ -732,7 +827,7 @@ void setStepperSpeed(float precipitationAmount, int maxPrecipitationHourly)
     Serial.print("Set stepper speed to ");
     Serial.println(stepperSpeed);
   #endif
-}
+} 
 
 void updateWeatherReports()
 {
@@ -807,8 +902,8 @@ void setWindSpeedFan(float windSpeed)
   ledcWrite(windFanPWMChannel, fanPWM);
   #ifdef DEBUG
     Serial.print("Set Wind-fan PWM to: ");
-    Serial.print(fanPWM);
-    Serial.println("/255");
+    Serial.print((int)(((float)fanPWM)/255*100));
+    Serial.println("%");
   #endif
 }
 
@@ -818,5 +913,27 @@ void setStatusLED(CRGB color)
   FastLED.show();
   FastLED.setBrightness(255);
 }
+
+void WifiConnected(WiFiEvent_t event, WiFiEventInfo_t info)
+{
+  #ifdef DEBUG
+    Serial.println("Connected to the WiFi network");
+  #endif
+
+  setStatusLED(CRGB::Green);
+}
+
+void WifiDisconnected(WiFiEvent_t event, WiFiEventInfo_t info)
+{
+  #ifdef DEBUG
+    Serial.println("Wifi connection lost...");
+  #endif
+
+  setStatusLED(CRGB::Red);
+}
+
+
+
+
 #endif
 

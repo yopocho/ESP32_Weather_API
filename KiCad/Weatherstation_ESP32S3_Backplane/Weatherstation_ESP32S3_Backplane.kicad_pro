@@ -471,8 +471,8 @@
       "idf": "",
       "netlist": "",
       "specctra_dsn": "",
-      "step": "",
-      "vrml": ""
+      "step": "../../../../../../Desktop/Weatherstation_ESP32S3_Backplane.step",
+      "vrml": "../../../../../../Desktop/Weatherstation_ESP32S3_Backplane.wrl"
     },
     "page_layout_descr_file": ""
   },
