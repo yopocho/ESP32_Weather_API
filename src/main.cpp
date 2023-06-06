@@ -3,7 +3,7 @@
 
 void setup() 
 {
-    /* Init neopixel status LED */
+  /* Init neopixel status LED */
   FastLED.addLeds<WS2812B, neopixelPin, GRB>(statusNeoPixel, 1);
   setStatusLED(CRGB::Red);
 
@@ -39,25 +39,7 @@ void setup()
     #endif
   }
 
-  /* Wifi setup */
-  WiFi.begin(ssid, password);
- 
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(1000);
-    
-    #ifdef DEBUG
-      Serial.println("Connecting to WiFi..");
-    #endif
-  }
-  setStatusLED(CRGB::DarkOrange);
-  
-  #ifdef DEBUG
-    Serial.println("Connected to the WiFi network");
-  #endif 
 
-  WiFi.onEvent(WifiConnected, ARDUINO_EVENT_WIFI_STA_CONNECTED);
-  WiFi.onEvent(WifiDisconnected, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
- 
   /* Init one-shot timers for display timeout */
   initTimers();
 
@@ -83,7 +65,9 @@ void setup()
   weatherStation.language = preferences.getString("Language", weatherStation.language);
   weatherStation.units = preferences.getString("Units", weatherStation.units);
   weatherStation.stepCount = preferences.getString("stepCount", weatherStation.stepCount);
-  weatherStation.timeout = preferences.getInt("timeout", weatherStation.timeout);
+  weatherStation.timeout = preferences.getInt("Timeout", weatherStation.timeout);
+  weatherStation.SSID = preferences.getString("SSID", weatherStation.SSID);
+  weatherStation.password = preferences.getString("Password", weatherStation.password);
   
   #ifdef DEBUG
     Serial.println("Known settings fetched from EEPROM");
@@ -115,30 +99,51 @@ void setup()
   stepper.setMaxSpeed(6400); 
   stepper.setAcceleration(30000); 
   stepper.moveTo(300); 
-  
-  /* Initial update to weather reports */
-  updateWeatherReports();
 
+  /* Wifi setup */
+  if(preferences.getBool("wifi_possible") == true) {
+    #ifdef DEBUG
+      Serial.println("Initializing Wifi");
+    #endif
+    wifiInit();
+      /* Confirm wifi connection established */
+    delay(5000);
+    if(WiFi.status() == WL_CONNECTED) {
+      preferences.putBool("wifi_possible", true);
+      /* Initial update to weather reports */
+      #ifdef DEBUG
+        Serial.println("Connected to the WiFi network");
+      #endif 
+      updateWeatherReports();
+      setStatusLED(CRGB::Green);
+    }
+    else {
+      /* Wifi connection not established */
+      preferences.putBool("wifi_possible", false);
+      #ifdef DEBUG
+        Serial.println("No WiFi connection established");
+      #endif
+      setStatusLED(CRGB::DarkOrange);
+      esp_restart();
+    }
+  }
+  else {
+    #ifdef DEBUG
+      Serial.println("No WiFi connection established");
+    #endif
+  }
+
+  /* Setup complete */
   #ifdef DEBUG
     Serial.println("Weatherstation initialization completed");
   #endif
-
-  setStatusLED(CRGB::Green);
 
 }
 
 void loop() 
 {
-
-  if(WiFi.status() != WL_CONNECTED) 
-  {
-    delay(1000);
-    #ifdef DEBUG
-      Serial.println("Connecting to WiFi..");
-    #endif
-  }
-
-  while(WiFi.status() == WL_CONNECTED) //TODO: Hier moet wel iets mee wss
+  /* MAIN LOOP */
+  while(WiFi.status() == WL_CONNECTED)
   {
     /* Handle updating current weather report */
     if(APITimeout(weatherStation.APITimeout)) updateWeatherReports();
@@ -169,19 +174,27 @@ void loop()
     else if(flagTrainingWeather) displayWeather(&weatherReportTraining);
     else idle();
   }
+
+  if(preferences.getBool("wifi_possible")) {
+    preferences.putBool("wifi_possible", false);
+    esp_restart();
+  }
+
+  /* Handle BLE */
+  BLE.poll();
+
+  // #ifdef DEBUG
+  //   delay(1000);
+  //   Serial.println("No wifi connection, weatherstation unusable");
+  // #endif
 }
 
 /*
  * TODO:
- *  
- *  idee van gastcollegegast: ipv direct Serial.println enzo, gooi alles in een queue met een timestamp en laat een task het uitlezen wanneer er tijd is (Dit saved runtime zelfs tijdens production!)
- *  
- *  DOUBLE CHECK PINMODES SMH
- *  
  *  Add to app: 
  *    WiFi connection listpicker (I guess select SSID and enter key? Has to be a better way maybe?)
- *    Training mode (Set temp, wind, precip, slipperiness)
  *    Actually use the selected language in the app
+ *    "Stel weergavetijd in" - Function to select the timeout of the displaying of the weather/trainingmode
  *  
  *  Redo slipperiness map?
  *  

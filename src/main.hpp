@@ -2,9 +2,6 @@
 #define MAIN_HPP_
 
 #include <Arduino.h>
-// #include <OneWire.h>
-// #include <DallasTemperature.h>
-// #include <NonBlockingDallas.h> 
 #include <String.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
@@ -17,6 +14,7 @@
 #include <FastLED.h>
 #include "esp_timer.h"
 #include "sdkconfig.h"
+#include <esp_wifi.h>
 
 #if !defined(CONFIG_BT_ENABLED) || !defined(CONFIG_BLUEDROID_ENABLED)
   #error Bluetooth is not enabled! Please run `make menuconfig` to and enable it
@@ -43,6 +41,8 @@
 
 #define TEMP_TIMEOUT 1000 //MAX6675 readout interval
 
+#define WIFI_CONN_TIMEOUT 1000 //reconnection interval
+
 #define serviceUUID "1289b0a6-c715-11ed-afa1-0242ac120002"
 #define languageCharacteristicUUID "1289b3f8-c715-11ed-afa1-0242ac120002"
 #define locationCharacteristicUUID "1289b81c-c715-11ed-afa1-0242ac120002"
@@ -51,6 +51,10 @@
 #define windspeedCharacteristicUUID "fc4975a8-fec6-11ed-be56-0242ac120002"
 #define slipperinessCharacteristicUUID "fc497724-fec6-11ed-be56-0242ac120002"
 #define trainingEnableCharacteristicUUID "5fd4fca6-feee-11ed-be56-0242ac120002"
+#define displayTimeoutCharacteristicUUID "e1341012-0384-11ee-be56-0242ac120002"
+#define WiFiSSIDCharacteristicUUID "0da27fd2-044b-11ee-be56-0242ac120002"
+#define WiFiPasswordCharacteristicUUID "e1340d92-0384-11ee-be56-0242ac120002"
+#define upcomingWeatherCharacteristicUUID "460caff2-0453-11ee-be56-0242ac120002"
 
 #define STEPPER_MAX_SPEED 6400
 #define STEPPER_MIN_SPEED 400
@@ -79,6 +83,8 @@ class weatherstationObject //Contains default values
     String units = "metric";
     String stepCount = "1";
     String callOpenWeatherMapAPI(String endpoint);
+    String SSID = "Niels hotspot";
+    String password = "Ikwilkaas";
 };
 weatherstationObject weatherStation;
 
@@ -95,10 +101,6 @@ typedef struct
   float snowLevel = 0.0;
 } weatherReportObject;
 weatherReportObject weatherReportCurrent, weatherReportUpcoming, weatherReportTraining;
-
-/* WiFi def. */
-const char* ssid = "Niels hotspot";
-const char* password =  "Ikwilkaas";
 
 /* MAX6675 Thermocouple def. */
 const int thermocoupleCLK = 12;
@@ -149,6 +151,9 @@ uint32_t previousMillisAPI = 0;
 /* Temperature time-out timer */
 uint32_t previousMillisTemp = 0;
 
+/* Wifi time-out timer */
+uint32_t previousMillisWifi = 0;
+
 /* Timed processes */
 esp_timer_handle_t timerWeatherFlags;
 volatile bool flagCurrentWeather = false;
@@ -160,13 +165,17 @@ uint32_t previousMillis = 0;
 
 /* Bluetooth */
 BLEService weatherstationService(serviceUUID); // create service
-BLEStringCharacteristic languageCharacteristic      (languageCharacteristicUUID,        BLERead | BLEWrite | BLENotify, CHARACTERISTIC_SIZE);
-BLEStringCharacteristic locationCharacteristic      (locationCharacteristicUUID,        BLERead | BLEWrite | BLENotify, CHARACTERISTIC_SIZE);
-BLEStringCharacteristic temperatureCharacteristic   (temperatureCharacteristicUUID,     BLERead | BLEWrite | BLENotify, CHARACTERISTIC_SIZE);
-BLEStringCharacteristic precipitationCharaceristic  (precipitationCharacteristicUUID,   BLERead | BLEWrite | BLENotify, CHARACTERISTIC_SIZE);
-BLEStringCharacteristic windspeedCharacteristic     (windspeedCharacteristicUUID,       BLERead | BLEWrite | BLENotify, CHARACTERISTIC_SIZE);
-BLEStringCharacteristic slipperinessCharacteristic  (slipperinessCharacteristicUUID,    BLERead | BLEWrite | BLENotify, CHARACTERISTIC_SIZE);
-BLEStringCharacteristic trainingEnableCharacteristic(trainingEnableCharacteristicUUID,  BLERead | BLEWrite | BLENotify, CHARACTERISTIC_SIZE);
+BLEStringCharacteristic languageCharacteristic        (languageCharacteristicUUID,        BLERead | BLEWrite | BLENotify, CHARACTERISTIC_SIZE);
+BLEStringCharacteristic locationCharacteristic        (locationCharacteristicUUID,        BLERead | BLEWrite | BLENotify, CHARACTERISTIC_SIZE);
+BLEStringCharacteristic temperatureCharacteristic     (temperatureCharacteristicUUID,     BLERead | BLEWrite | BLENotify, CHARACTERISTIC_SIZE);
+BLEStringCharacteristic precipitationCharaceristic    (precipitationCharacteristicUUID,   BLERead | BLEWrite | BLENotify, CHARACTERISTIC_SIZE);
+BLEStringCharacteristic windspeedCharacteristic       (windspeedCharacteristicUUID,       BLERead | BLEWrite | BLENotify, CHARACTERISTIC_SIZE);
+BLEStringCharacteristic slipperinessCharacteristic    (slipperinessCharacteristicUUID,    BLERead | BLEWrite | BLENotify, CHARACTERISTIC_SIZE);
+BLEStringCharacteristic trainingEnableCharacteristic  (trainingEnableCharacteristicUUID,  BLERead | BLEWrite | BLENotify, CHARACTERISTIC_SIZE);
+BLEStringCharacteristic WifiSSIDCharactaristic        (WiFiSSIDCharacteristicUUID,        BLERead | BLEWrite | BLENotify, CHARACTERISTIC_SIZE);
+BLEStringCharacteristic WiFiPasswordCharacteristic    (WiFiPasswordCharacteristicUUID,    BLERead | BLEWrite | BLENotify, CHARACTERISTIC_SIZE);
+BLEStringCharacteristic displayTimeoutCharacteristic  (displayTimeoutCharacteristicUUID,  BLERead | BLEWrite | BLENotify, CHARACTERISTIC_SIZE);
+BLEStringCharacteristic upcomingWeatherCharacteristic (upcomingWeatherCharacteristicUUID, BLERead | BLEWrite | BLENotify, CHARACTERISTIC_SIZE);
 
 /* EEPROM */
 Preferences preferences;
@@ -186,8 +195,10 @@ void setWindSpeedFan(float windSpeed);
 float mapFloat(float x, float in_min, float in_max, float out_min, float out_max);
 void setStepperSpeed(float precipitationAmount, int maxPrecipitationHourly);
 void setStatusLED(CRGB color);
-void WiFiStationConnected(WiFiEvent_t event, WiFiEventInfo_t info);
+void WifiConnected(WiFiEvent_t event, WiFiEventInfo_t info);
 void WifiDisconnected(WiFiEvent_t event, WiFiEventInfo_t info);
+// void setWifiCredentials(String credentials);
+void wifiInit(void);
 
 /* Function definitions */
 String weatherstationObject::callOpenWeatherMapAPI(String endpoint)
@@ -197,7 +208,7 @@ String weatherstationObject::callOpenWeatherMapAPI(String endpoint)
 
     HTTPClient http;
 
-    String combinedEndpoint =  endpoint + "lang=" + language + '&' + "lat=" + lattitude + '&' + "lon=" + longitude + '&' + "units=" + units + '&' + "appid=" + key;
+    String combinedEndpoint =  endpoint + "lang=" + weatherStation.language + '&' + "lat=" + weatherStation.lattitude + '&' + "lon=" + weatherStation.longitude + '&' + "units=" + weatherStation.units + '&' + "appid=" + weatherStation.key;
     if(endpoint.indexOf("forecast")) combinedEndpoint = combinedEndpoint + '&' + "cnt=" + weatherStation.stepCount;
 
     #ifdef DEBUG
@@ -442,6 +453,17 @@ bool tempTimeout(uint32_t delayAmount)
   else return false;
 }
 
+bool wiFiConnectionTimeout(uint32_t delayAmount) {
+  uint32_t timeoutMillis = delayAmount;
+  uint32_t currentMillis = millis();
+  if (currentMillis > (previousMillisWifi + timeoutMillis))
+  {
+    previousMillisWifi = currentMillis;
+    return true;
+  }
+  else return false;
+}
+
 uint16_t getWeatherID(DynamicJsonDocument weatherReport)
 {
   int weatherID = 0;
@@ -610,7 +632,7 @@ void dataHandlerTrainingEnableCharacteristic(BLEDevice central, BLECharacteristi
   esp_timer_start_once(timerWeatherFlags, weatherStation.timeout * 1000);
   setStatusLED(CRGB::SkyBlue);
   #ifdef DEBUG
-    Serial.println("Starting trainsmode");
+    Serial.println("Starting trainingmode");
   #endif
 }
 
@@ -622,6 +644,60 @@ void dataHandlerLocationCharacteristic(BLEDevice central, BLECharacteristic char
     Serial.println(location);
   #endif
   setLocation(location);
+}
+
+
+void dataHandlerWifiSSIDCharacteristic(BLEDevice central, BLECharacteristic characteristic) {
+  String WiFiSSID = WifiSSIDCharactaristic.value();
+  // weatherStation.SSID = preferences.getString("SSID", "Niels hotspot");
+  preferences.putString("SSID", WiFiSSID);
+  #ifdef DEBUG
+    Serial.print("Characteristic event, written: ");
+    Serial.println(WiFiSSID);
+    Serial.print("New SSID: ");
+    Serial.println(weatherStation.SSID);
+  #endif
+}
+
+void dataHandlerWiFiPasswordCharacteristic(BLEDevice central, BLECharacteristic characteristic) {
+  String WiFiPassword = WiFiPasswordCharacteristic.value();
+  preferences.putString("Password", WiFiPassword);
+  weatherStation.password = preferences.getString("Password", "Ikwilkaas");
+  #ifdef DEBUG
+    Serial.print("Characteristic event, written: ");
+    Serial.println(WiFiPassword);
+    Serial.print("New Password: ");
+    Serial.println(weatherStation.password);
+  #endif
+  wifiInit();
+  delay(5000);
+  preferences.putBool("wifi_possible", true);
+}
+
+void dataHandlerDisplayTimeoutCharacteristic(BLEDevice central, BLECharacteristic characteristic) {
+  String displayTimeout = displayTimeoutCharacteristic.value();
+  preferences.putString("Timeout", displayTimeout);
+  String tempDisplayTimeout = preferences.getString("Timeout", "10000");
+  weatherStation.timeout = tempDisplayTimeout.toInt();
+  #ifdef DEBUG
+    Serial.print("Characteristic event, written: ");
+    Serial.println(displayTimeout);
+    Serial.print("New display timeout: ");
+    Serial.println(weatherStation.timeout);
+  #endif
+}
+
+void dataHandlerUpcomingWeatherCharacteristic(BLEDevice central, BLECharacteristic characteristic) {
+  String upcomingWeatherStepAmount = upcomingWeatherCharacteristic.value();
+  preferences.putString("stepCount", upcomingWeatherStepAmount);
+  String tempUpcomingWeatherStepAmount = preferences.getString("stepCount", "1");
+  weatherStation.stepCount = tempUpcomingWeatherStepAmount.toInt();
+  #ifdef DEBUG
+    Serial.print("Characteristic event, written: ");
+    Serial.println(upcomingWeatherStepAmount);
+    Serial.print("New upcoming weather stepcount: ");
+    Serial.println(weatherStation.stepCount);
+  #endif
 }
 
 
@@ -667,6 +743,10 @@ bool initBLE()
   weatherstationService.addCharacteristic(windspeedCharacteristic);
   weatherstationService.addCharacteristic(slipperinessCharacteristic);
   weatherstationService.addCharacteristic(trainingEnableCharacteristic);
+  weatherstationService.addCharacteristic(WifiSSIDCharactaristic);
+  weatherstationService.addCharacteristic(WiFiPasswordCharacteristic);
+  weatherstationService.addCharacteristic(displayTimeoutCharacteristic);
+  weatherstationService.addCharacteristic(upcomingWeatherCharacteristic);
   BLE.setEventHandler(BLEConnected, connectHandlerBLE);
   BLE.setEventHandler(BLEDisconnected, disconnectHandlerBLE);
   languageCharacteristic.setEventHandler(BLEWritten, dataHandlerLanguageCharacteristic);
@@ -676,6 +756,10 @@ bool initBLE()
   windspeedCharacteristic.setEventHandler(BLEWritten, dataHandlerWindspeedCharacteristic);
   slipperinessCharacteristic.setEventHandler(BLEWritten, dataHandlerSlipperinessCharacteristic);
   trainingEnableCharacteristic.setEventHandler(BLEWritten, dataHandlerTrainingEnableCharacteristic);
+  WifiSSIDCharactaristic.setEventHandler(BLEWritten, dataHandlerWifiSSIDCharacteristic);
+  WiFiPasswordCharacteristic.setEventHandler(BLEWritten, dataHandlerWiFiPasswordCharacteristic);
+  displayTimeoutCharacteristic.setEventHandler(BLEWritten, dataHandlerDisplayTimeoutCharacteristic);
+  upcomingWeatherCharacteristic.setEventHandler(BLEWritten, dataHandlerUpcomingWeatherCharacteristic);
   BLE.addService(weatherstationService);
   BLE.advertise();
   return true;
@@ -932,8 +1016,11 @@ void WifiDisconnected(WiFiEvent_t event, WiFiEventInfo_t info)
   setStatusLED(CRGB::Red);
 }
 
-
-
+void wifiInit(void) {
+  WiFi.begin(weatherStation.SSID.c_str(), weatherStation.password.c_str());
+  WiFi.onEvent(WifiConnected, ARDUINO_EVENT_WIFI_STA_CONNECTED);
+  WiFi.onEvent(WifiDisconnected, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
+}
 
 #endif
 
