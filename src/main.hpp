@@ -28,20 +28,19 @@
 #define ERR_INVALID_INPUT "Input object invalid"
 #define ERR_INVALID_DATA "Given JSON object does not contain valid data"
 
-//TODO: typdef enum hiervan maken? Bij servoset gwn *90 graden ;)
-#define NOT_SLIPPERY_POS 0
-#define SLIGHTLY_SLIPPERY_POS 90
-#define QUITE_SLIPPERY_POS 180
-#define REALLY_SLIPPERY_POS 0 //TODO: Update code to reflect the 180deg servo
-#define INSANELY_SLIPPERY_POS 0 //TODO: Update code to reflect the 180deg servo
+#define NOT_SLIPPERY_POS 30
+#define SLIGHTLY_SLIPPERY_POS 180
+#define QUITE_SLIPPERY_POS 110
 
 #define CHARACTERISTIC_SIZE 512 //BLE
 
 #define JSON_CAPACITY 4096 //JSON
 
-#define TEMP_TIMEOUT 1000 //MAX6675 readout interval
+#define TEMP_TIMEOUT 500 //MAX6675 readout interval
 
 #define WIFI_CONN_TIMEOUT 1000 //reconnection interval
+
+#define FEEDBACK_TIMEOUT 500000//us
 
 #define serviceUUID "1289b0a6-c715-11ed-afa1-0242ac120002"
 #define languageCharacteristicUUID "1289b3f8-c715-11ed-afa1-0242ac120002"
@@ -58,12 +57,16 @@
 
 #define STEPPER_MAX_SPEED 6400
 #define STEPPER_MIN_SPEED 400
+#define STEPPER_TARGET_POS 180 //steps
 
 #define MAX_RAIN_HOURLY 10 //mm
 #define MAX_SNOW_HOURLY 100 //mm
 
 #define RAIN_FLAG true
 #define SNOW_FLAG false 
+
+#define MAX_PELTIER_TEMP 45
+#define MIN_PELTIER_TEMP 10
 
 /* Weatherstation data-entry */
 class weatherstationObject //Contains default values
@@ -72,7 +75,7 @@ class weatherstationObject //Contains default values
     const String key = "63463198104ddccafc13815f6d61e642";
   public:
     const uint32_t APITimeout = 30000; //ms
-    float measuredTemp = 0.0f;
+    float measuredTemp = 20.0f;
     float targetTemp = 20.0f; 
     uint32_t timeout = 10000; //ms
     const String endpointCurrent = "http://api.openweathermap.org/data/2.5/weather?";
@@ -144,6 +147,8 @@ const float tempHysteresis = 0.5;
 
 /* Pin def. vibration motor */
 const int motorEnable = 21;
+bool feedbackFlag = true;
+esp_timer_handle_t timerFeedbackTimeout;
 
 /* API Time-out timer */
 uint32_t previousMillisAPI = 0;
@@ -154,11 +159,15 @@ uint32_t previousMillisTemp = 0;
 /* Wifi time-out timer */
 uint32_t previousMillisWifi = 0;
 
+/* Feedback time-out timer */
+uint32_t previousMillisButtonpress = 0;
+
 /* Timed processes */
 esp_timer_handle_t timerWeatherFlags;
 volatile bool flagCurrentWeather = false;
 volatile bool flagUpcomingWeather = false;
 volatile bool flagTrainingWeather = false;
+volatile bool flagFault = false;
 
 /* Millis delay */
 uint32_t previousMillis = 0;
@@ -197,8 +206,8 @@ void setStepperSpeed(float precipitationAmount, int maxPrecipitationHourly);
 void setStatusLED(CRGB color);
 void WifiConnected(WiFiEvent_t event, WiFiEventInfo_t info);
 void WifiDisconnected(WiFiEvent_t event, WiFiEventInfo_t info);
-// void setWifiCredentials(String credentials);
 void wifiInit(void);
+void IRAM_ATTR ISRFeedbackTimeout(void *arg);
 
 /* Function definitions */
 String weatherstationObject::callOpenWeatherMapAPI(String endpoint)
@@ -298,28 +307,25 @@ void controlLoop(float temp)
     digitalWrite(peltierCool, LOW);
     digitalWrite(peltierHeat, HIGH);
     ledcWrite(peltierFanPWMChannel, 0);
-    // digitalWrite(peltierFanPWMPin, LOW); 
     higherFlag = false;
-    #ifdef DEBUG
-      // Serial.println("Raising temperature");
-    #endif
   }
   else if (lowerFlag)
   {
     digitalWrite(peltierHeat, LOW);
     digitalWrite(peltierCool, HIGH);
     ledcWrite(peltierFanPWMChannel, 255);
-    // digitalWrite(peltierFanPWMPin, HIGH); 
     lowerFlag = false;
-    #ifdef DEBUG
-      // Serial.println("Lowering temperature");
-    #endif
   }
   else if(!lowerFlag && !higherFlag)
   {
     digitalWrite(peltierCool, LOW);
     digitalWrite(peltierHeat, LOW);
     digitalWrite(peltierFanPWMPin, LOW); 
+    if(feedbackFlag) {
+      digitalWrite(motorEnable, HIGH);
+      esp_timer_start_once(timerFeedbackTimeout, FEEDBACK_TIMEOUT);
+      feedbackFlag = false;
+    }
     setStatusLED(CRGB::Green);
   }
 }
@@ -342,8 +348,6 @@ int setSlipperinessServo(int weatherID)
   uint16_t notSlippery = NOT_SLIPPERY_POS;
   uint16_t slightlySlippery = SLIGHTLY_SLIPPERY_POS;
   uint16_t quiteSlippery = QUITE_SLIPPERY_POS;
-  uint16_t reallySlippery = REALLY_SLIPPERY_POS;
-  uint16_t insanelySlippery = INSANELY_SLIPPERY_POS;
 
   switch(weatherID)
   {
@@ -452,6 +456,7 @@ bool tempTimeout(uint32_t delayAmount)
   }
   else return false;
 }
+
 
 bool wiFiConnectionTimeout(uint32_t delayAmount) {
   uint32_t timeoutMillis = delayAmount;
@@ -627,12 +632,19 @@ void dataHandlerSlipperinessCharacteristic(BLEDevice central, BLECharacteristic 
 
 
 void dataHandlerTrainingEnableCharacteristic(BLEDevice central, BLECharacteristic characteristic) {
+    /* Update countdown in mobile app with real value */
+  displayTimeoutCharacteristic.writeValue(String(weatherStation.timeout));
+
   flagTrainingWeather = true;
+  flagCurrentWeather = false;
+  flagUpcomingWeather = false;
   doOnceFlag = true;
   esp_timer_start_once(timerWeatherFlags, weatherStation.timeout * 1000);
-  setStatusLED(CRGB::SkyBlue);
+  setStatusLED(CRGB::DarkOrange);
   #ifdef DEBUG
-    Serial.println("Starting trainingmode");
+    Serial.print("Starting trainingmode for ");
+    Serial.print(weatherStation.timeout);
+    Serial.println("ms");
   #endif
 }
 
@@ -649,8 +661,8 @@ void dataHandlerLocationCharacteristic(BLEDevice central, BLECharacteristic char
 
 void dataHandlerWifiSSIDCharacteristic(BLEDevice central, BLECharacteristic characteristic) {
   String WiFiSSID = WifiSSIDCharactaristic.value();
-  // weatherStation.SSID = preferences.getString("SSID", "Niels hotspot");
   preferences.putString("SSID", WiFiSSID);
+  weatherStation.SSID = preferences.getString("SSID", "Niels hotspot");
   #ifdef DEBUG
     Serial.print("Characteristic event, written: ");
     Serial.println(WiFiSSID);
@@ -676,9 +688,9 @@ void dataHandlerWiFiPasswordCharacteristic(BLEDevice central, BLECharacteristic 
 
 void dataHandlerDisplayTimeoutCharacteristic(BLEDevice central, BLECharacteristic characteristic) {
   String displayTimeout = displayTimeoutCharacteristic.value();
-  preferences.putString("Timeout", displayTimeout);
-  String tempDisplayTimeout = preferences.getString("Timeout", "10000");
-  weatherStation.timeout = tempDisplayTimeout.toInt();
+  preferences.putInt("timeout_integer", displayTimeout.toInt() * 1000);
+  uint32_t tempDisplayTimeout = preferences.getInt("timeout_integer", 10000);
+  weatherStation.timeout = tempDisplayTimeout;
   #ifdef DEBUG
     Serial.print("Characteristic event, written: ");
     Serial.println(displayTimeout);
@@ -721,6 +733,7 @@ void connectHandlerBLE(BLEDevice central) {
     Serial.print("Connected event, central: ");
     Serial.println(central.address());
   #endif
+  displayTimeoutCharacteristic.writeValue("0");
 }
 
 
@@ -788,16 +801,24 @@ void IRAM_ATTR ISRWeatherFlags(void *arg)
   flagTrainingWeather = false;
   flagStatusLED = true;
   #ifdef DEBUG
-    Serial.println("Finished displaying the weather");
+    Serial.println("---------------Finished displaying the weather---------------");
   #endif
 }
 
 
+void IRAM_ATTR ISRFeedbackTimeout(void *arg) 
+{
+  digitalWrite(motorEnable, LOW);
+}
+
 void initTimers()
 {
   esp_timer_create_args_t timerWeatherFlagsArgs = {};
+  esp_timer_create_args_t timerFeedbackTimeoutArgs = {};
   timerWeatherFlagsArgs.callback = &ISRWeatherFlags;
+  timerFeedbackTimeoutArgs.callback = &ISRFeedbackTimeout;
   esp_timer_create(&timerWeatherFlagsArgs, &timerWeatherFlags);
+  esp_timer_create(&timerFeedbackTimeoutArgs, &timerFeedbackTimeout);
 }
 
 
@@ -811,7 +832,6 @@ void idle()
   /* Disable precipitation stepper */
   digitalWrite(enablePin, HIGH);
   vTaskSuspend(stepperTask);
-  // stepper.moveTo(Een start locatie ofzo); 
 
   /* Disable wind */
   ledcWrite(windFanPWMChannel, 0);
@@ -822,12 +842,14 @@ void idle()
   /* Set Status LED */
   if(flagStatusLED) 
   {
+    digitalWrite(motorEnable, HIGH);
+    esp_timer_start_once(timerFeedbackTimeout, FEEDBACK_TIMEOUT*6);
     setStatusLED(CRGB::Green);
     flagStatusLED = false;
   }
 
-  /* Ensure vibration motor is off */
-  digitalWrite(motorEnable, LOW);
+  // /* Ensure vibration motor is off */
+  // digitalWrite(motorEnable, LOW);
 
   /* Handle BLE */
   BLE.poll();
@@ -842,8 +864,12 @@ void displayPrecipitation(void *pvParameters)
   #endif
   while(true)
   {
-      if (stepper.distanceToGo() == 0) stepper.moveTo(-stepper.currentPosition()); 
-      stepper.run();
+    if(stepper.maxSpeed() > 0.0) {
+      stepper.moveTo(STEPPER_TARGET_POS);
+      stepper.runToPosition();
+      stepper.moveTo(-STEPPER_TARGET_POS);
+      stepper.runToPosition();
+    }
   }
 }
 
@@ -851,40 +877,42 @@ void displayPrecipitation(void *pvParameters)
 void displayWeather(weatherReportObject *weatherReport)
 { 
   /* Handle temperature */
-  // weatherStation.targetTemp = weatherReport->windChillTemperature; GEVOEL IS NIET LINEAIR, MOET EEN f(x) FUNCTIE WORDEN
-  weatherStation.targetTemp = mapFloat(weatherReport->windChillTemperature, -10, 40, 10, 40);
+  weatherStation.targetTemp = mapFloat(weatherReport->windChillTemperature, -10, 40, MIN_PELTIER_TEMP, MAX_PELTIER_TEMP);
   controlLoop(weatherStation.measuredTemp);
-  #ifdef DEBUG
-    // Serial.print(weatherStation.measuredTemp);
-    // Serial.println("ºC");
-  #endif
-
-  /* Disable vibration feedback motor */
-  digitalWrite(motorEnable, LOW);
 
   /* Handle events that only need to happen once per buttonpress */
   if(doOnceFlag)
   {
-    #ifdef DEBUG
-      Serial.println("Now displaying this weather:");
-      Serial.print("Rain: ");
-      Serial.println(weatherReport->rainLevel);
-    #endif
     /* Trigger vibration feedback motor */
     digitalWrite(motorEnable, HIGH);
+    feedbackFlag = true;
+
     #ifdef DEBUG
-      Serial.println("Enabling vibration motor");
+      Serial.print("Send data to displayTimeout characteristic: ");
+      Serial.println(weatherStation.timeout);
+    #endif
+
+    #ifdef DEBUG
+      Serial.println("Now displaying this weather:");
+      Serial.print("Amount of time:");
+      Serial.println(weatherStation.timeout);
     #endif
 
     /* Handle wind */
     setWindSpeedFan(weatherReport->windSpeed);
 
-    /* Handle precipitation */
+    /* Handle precipitation info */
     digitalWrite(enablePin, LOW);
     float highestPrecipitation = (weatherReport->rainLevel < weatherReport->snowLevel) ? SNOW_FLAG : RAIN_FLAG;
-    if(highestPrecipitation == RAIN_FLAG) setStepperSpeed(weatherReport->rainLevel, MAX_RAIN_HOURLY);
-    else if(highestPrecipitation == SNOW_FLAG) setStepperSpeed(weatherReport->snowLevel, MAX_SNOW_HOURLY);
-    vTaskResume(stepperTask);
+    if(highestPrecipitation > 0.0) { //Only if there is any precipitation bother with the stepper task
+      if(highestPrecipitation == RAIN_FLAG) setStepperSpeed(weatherReport->rainLevel, MAX_RAIN_HOURLY);
+      else if(highestPrecipitation == SNOW_FLAG) setStepperSpeed(weatherReport->snowLevel, MAX_SNOW_HOURLY);
+      digitalWrite(enablePin, LOW);
+      vTaskResume(stepperTask);
+    }
+    else {
+      stepper.setMaxSpeed(0);
+    }
 
     /* Handle slipperiness */
     if (!setSlipperinessServo(weatherReport->weatherID)) 
@@ -898,6 +926,10 @@ void displayWeather(weatherReportObject *weatherReport)
       Serial.print("Set targetTemp: ");
       Serial.println(weatherStation.targetTemp);
     #endif
+
+    /* Disable vibration feedback motor */
+    digitalWrite(motorEnable, LOW);
+
     doOnceFlag = false;
   }
 }
@@ -908,7 +940,7 @@ void setStepperSpeed(float precipitationAmount, int maxPrecipitationHourly)
   if(precipitationAmount == 0.00) stepperSpeed = 0;
   stepper.setMaxSpeed(stepperSpeed);
   #ifdef DEBUG
-    Serial.print("Set stepper speed to ");
+    Serial.print("Set stepper speed to: ");
     Serial.println(stepperSpeed);
   #endif
 } 
@@ -1003,8 +1035,6 @@ void WifiConnected(WiFiEvent_t event, WiFiEventInfo_t info)
   #ifdef DEBUG
     Serial.println("Connected to the WiFi network");
   #endif
-
-  setStatusLED(CRGB::Green);
 }
 
 void WifiDisconnected(WiFiEvent_t event, WiFiEventInfo_t info)
