@@ -651,6 +651,7 @@ void dataHandlerTrainingEnableCharacteristic(BLEDevice central, BLECharacteristi
   flagCurrentWeather = false;
   flagUpcomingWeather = false;
   doOnceFlag = true;
+  esp_timer_stop(timerWeatherFlags);
   esp_timer_start_once(timerWeatherFlags, weatherStation.timeout * 1000);
   setStatusLED(CRGB::DarkOrange);
   #ifdef DEBUG
@@ -852,7 +853,7 @@ void idle()
   doOnceFlag = false;
 
   /* Set Status LED */
-  if(flagStatusLED && (WiFi.status() != WL_CONNECTED)) 
+  if(flagStatusLED) 
   {
     digitalWrite(motorEnable, HIGH);
     esp_timer_start_once(timerFeedbackTimeout, FEEDBACK_TIMEOUT*6);
