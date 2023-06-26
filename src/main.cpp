@@ -212,6 +212,9 @@ void loop()
       digitalWrite(motorEnable, HIGH);
     }
 
+    /* Handle BLE */
+    BLE.poll();
+
     /* Execute state */
     if(flagTrainingWeather && !(digitalRead(buttonUpcomingWeather) || digitalRead(buttonCurrentWeather))) displayWeather(&weatherReportTraining);
     else if(flagUpcomingWeather && !(digitalRead(buttonUpcomingWeather) || digitalRead(buttonCurrentWeather))) displayWeather(&weatherReportUpcoming);
@@ -232,15 +235,20 @@ void loop()
   /* Temperature handling */
   if(tempTimeout(TEMP_TIMEOUT)) updateTemperature();
 
-  /* Training mode without WiFi */
+  /* Handle BLE */
+  BLE.poll();
+
+
   if(flagTrainingWeather) {
+      /* Training mode without WiFi */
     flagCurrentWeather = false;
     flagUpcomingWeather = false;
     displayWeather(&weatherReportTraining);
   }
-
-  /* Idle status if not displaying training mode */
-  idle();
+  else {
+    /* Idle status if not displaying training mode */
+    idle();
+  }
 }
 /**
  * 

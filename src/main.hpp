@@ -836,9 +836,6 @@ void initTimers()
 
 void idle()
 {
-  /* Handle BLE */
-  BLE.poll();
-
   /* Ensure peltier is off */
   if(digitalRead(peltierCool)) digitalWrite(peltierCool, LOW);
   if(digitalRead(peltierHeat)) digitalWrite(peltierHeat, LOW);
@@ -865,9 +862,6 @@ void idle()
   else {
     setStatusLED(CRGB::DarkOrange);
   }
-
-  /* Handle BLE */
-  BLE.poll();
 }
 
 
