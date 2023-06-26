@@ -20,7 +20,7 @@
   #error Bluetooth is not enabled! Please run `make menuconfig` to and enable it
 #endif
 
-#define DEBUG
+// #define DEBUG
 
 #define ERR_NO_DATA "No data returned"
 #define ERR_NO_WIFI "No wifi connection established"
@@ -322,6 +322,9 @@ void controlLoop(float temp)
     digitalWrite(peltierHeat, LOW);
     digitalWrite(peltierFanPWMPin, LOW); 
     if(feedbackFlag) {
+      #ifdef DEBUG
+        Serial.println("Peltier at set temperature");
+      #endif
       digitalWrite(motorEnable, HIGH);
       esp_timer_start_once(timerFeedbackTimeout, FEEDBACK_TIMEOUT);
       feedbackFlag = false;
@@ -339,6 +342,8 @@ void updateTemperature()
     Serial.print(weatherStation.measuredTemp);
     Serial.println("ºC");
   #endif
+  // Serial.print("Available heap in byte,");
+  Serial.println(ESP.getFreeHeap());
 }
 
 
@@ -495,7 +500,10 @@ uint16_t getWeatherID(DynamicJsonDocument weatherReport)
         else weatherStrings[stringIterator++] = kv.value().as<const char*>();
     }
   }
-  
+
+  /* Ensure freeing of memory */
+  weatherArray.clear();
+
   return weatherID;
 }
 
@@ -526,6 +534,10 @@ String getWeatherDescription(DynamicJsonDocument weatherReport)
       else weatherStrings[stringIterator++] = kv.value().as<const char*>();
     }
   }
+
+  /* Ensure freeing of memory */
+  weatherArray.clear();
+
   if(weatherStrings[1] != NULL) return weatherStrings[1];
   return ERR_INVALID_DATA;
 }
@@ -947,8 +959,6 @@ void setStepperSpeed(float precipitationAmount, int maxPrecipitationHourly)
 
 void updateWeatherReports()
 {
-  /*TODO: IPV dat nu alleen het huidige weer opgehaald wordt, ook tegelijkertijd de 4uur weerbericht doen en in structs gooien*/
-  // int weatherID = getWeatherID(parseJSON(callOpenWeatherAPI(endpoint, key))); //Condensed version of below ;)
   String weatherCurrentString = weatherStation.callOpenWeatherMapAPI(weatherStation.endpointCurrent);
   DynamicJsonDocument weatherCurrentJSON(JSON_CAPACITY);
   weatherCurrentJSON = parseJSON(weatherCurrentString);
@@ -1005,6 +1015,10 @@ void updateWeatherReports()
     Serial.print("De sneeuw zal zijn: ");
     Serial.println(weatherReportUpcoming.snowLevel);
   #endif
+
+  /* Ensure freeing of memory */
+  weatherCurrentJSON.clear();
+  weatherUpcomingJSON.clear();
 }
 
 float mapFloat(float x, float in_min, float in_max, float out_min, float out_max)
@@ -1043,7 +1057,7 @@ void WifiDisconnected(WiFiEvent_t event, WiFiEventInfo_t info)
     Serial.println("Wifi connection lost...");
   #endif
 
-  setStatusLED(CRGB::Red);
+  setStatusLED(CRGB::DarkOrange);
 }
 
 void wifiInit(void) {
