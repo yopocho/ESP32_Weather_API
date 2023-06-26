@@ -836,6 +836,9 @@ void initTimers()
 
 void idle()
 {
+  /* Handle BLE */
+  BLE.poll();
+
   /* Ensure peltier is off */
   if(digitalRead(peltierCool)) digitalWrite(peltierCool, LOW);
   if(digitalRead(peltierHeat)) digitalWrite(peltierHeat, LOW);
@@ -852,16 +855,16 @@ void idle()
   doOnceFlag = false;
 
   /* Set Status LED */
-  if(flagStatusLED) 
+  if(flagStatusLED && (WiFi.status() != WL_CONNECTED)) 
   {
     digitalWrite(motorEnable, HIGH);
     esp_timer_start_once(timerFeedbackTimeout, FEEDBACK_TIMEOUT*6);
     setStatusLED(CRGB::Green);
     flagStatusLED = false;
   }
-
-  // /* Ensure vibration motor is off */
-  // digitalWrite(motorEnable, LOW);
+  else {
+    setStatusLED(CRGB::DarkOrange);
+  }
 
   /* Handle BLE */
   BLE.poll();

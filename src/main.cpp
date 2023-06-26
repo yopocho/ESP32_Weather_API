@@ -171,8 +171,6 @@ void loop()
       flagFault = true;
       break;
     }
-    /* Handle BLE */
-    BLE.poll();
 
     /* Handle updating current weather report */
     if(APITimeout(weatherStation.APITimeout)) updateWeatherReports();
@@ -206,6 +204,7 @@ void loop()
       flagTrainingWeather = false;
       doOnceFlag = true;
       setStatusLED(CRGB::DarkOrange);
+      
       /* Disable precipitation stepper */
       digitalWrite(enablePin, HIGH);
       vTaskSuspend(stepperTask);
@@ -233,9 +232,6 @@ void loop()
   /* Temperature handling */
   if(tempTimeout(TEMP_TIMEOUT)) updateTemperature();
 
-  /* Handle BLE */
-  BLE.poll();
-
   /* Training mode without WiFi */
   if(flagTrainingWeather) {
     flagCurrentWeather = false;
@@ -243,7 +239,8 @@ void loop()
     displayWeather(&weatherReportTraining);
   }
 
-  setStatusLED(CRGB::DarkOrange);
+  /* Idle status if not displaying training mode */
+  idle();
 }
 /**
  * 
