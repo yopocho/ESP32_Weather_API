@@ -72,7 +72,7 @@
 class weatherstationObject //Contains default values
 {
   private:
-    const String key = "63463198104ddccafc13815f6d61e642";
+    const String key = "63463198104ddccafc13815f6d61e642"; //API Key voor OpenWeather
   public:
     const uint32_t APITimeout = 30000; //ms
     float measuredTemp = 20.0f;
