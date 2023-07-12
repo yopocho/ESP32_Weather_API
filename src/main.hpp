@@ -20,7 +20,8 @@
   #error Bluetooth is not enabled! Please run `make menuconfig` to and enable it
 #endif
 
-// #define DEBUG
+#define DEBUG
+// #define DEBUG_CSV //Outputs free heap in CSV format over serial
 
 #define ERR_NO_DATA "No data returned"
 #define ERR_NO_WIFI "No wifi connection established"
@@ -34,7 +35,7 @@
 
 #define CHARACTERISTIC_SIZE 512 //BLE
 
-#define JSON_CAPACITY 4096 //JSON
+#define JSON_CAPACITY 16192 //Bytes
 
 #define TEMP_TIMEOUT 500 //MAX6675 readout interval
 
@@ -74,20 +75,20 @@ class weatherstationObject //Contains default values
   private:
     const String key = "63463198104ddccafc13815f6d61e642"; //API Key voor OpenWeather
   public:
-    const uint32_t APITimeout = 30000; //ms
+    const uint32_t APITimeout = 1500000; //ms
     float measuredTemp = 20.0f;
     float targetTemp = 20.0f; 
-    uint32_t timeout = 10000; //ms
+    uint32_t timeout = 60000; //ms
     const String endpointCurrent = "http://api.openweathermap.org/data/2.5/weather?";
     const String endpoint3hour5days = "http://api.openweathermap.org/data/2.5/forecast?";
-    String lattitude = "52.0000";
-    String longitude = "5.0000";
+    String lattitude = "0.0000";
+    String longitude = "0.0000";
     String language = "nl";
     String units = "metric";
     String stepCount = "1";
     String callOpenWeatherMapAPI(String endpoint);
-    String SSID = "Niels hotspot";
-    String password = "Ikwilkaas";
+    String SSID = "NA";
+    String password = "NA";
 };
 weatherstationObject weatherStation;
 
@@ -334,16 +335,30 @@ void controlLoop(float temp)
 }
 
 
-void updateTemperature()
+int updateTemperature()
 {
   weatherStation.measuredTemp = thermocouple.readCelsius();
+  if(weatherStation.measuredTemp <= (MIN_PELTIER_TEMP - 5.0) || weatherStation.measuredTemp >= MAX_PELTIER_TEMP + 8.0) {
+    setStatusLED(CRGB::Red);
+    flagUpcomingWeather = false;
+    flagCurrentWeather = false;
+    flagTrainingWeather = false;
+    flagFault = true;
+    return 0;
+  }
   #ifdef DEBUG
     Serial.print("Measured temperature: ");
     Serial.print(weatherStation.measuredTemp);
     Serial.println("ºC");
   #endif
-  // Serial.print("Available heap in byte,");
-  Serial.println(ESP.getFreeHeap());
+
+  #ifdef DEBUG_CSV
+    /* Here for the timer :) */
+    Serial.print("Available heap in bytes,");
+    Serial.println(ESP.getFreeHeap());
+  #endif
+
+  return 1;
 }
 
 
@@ -644,8 +659,12 @@ void dataHandlerSlipperinessCharacteristic(BLEDevice central, BLECharacteristic 
 
 
 void dataHandlerTrainingEnableCharacteristic(BLEDevice central, BLECharacteristic characteristic) {
-    /* Update countdown in mobile app with real value */
+  /* Update countdown in mobile app with real value */
   displayTimeoutCharacteristic.writeValue(String(weatherStation.timeout));
+
+  /* Disable precipitation stepper */
+  digitalWrite(enablePin, HIGH);
+  vTaskSuspend(stepperTask);
 
   flagTrainingWeather = true;
   flagCurrentWeather = false;
@@ -860,9 +879,6 @@ void idle()
     setStatusLED(CRGB::Green);
     flagStatusLED = false;
   }
-  else {
-    setStatusLED(CRGB::DarkOrange);
-  }
 }
 
 
@@ -874,6 +890,7 @@ void displayPrecipitation(void *pvParameters)
   #endif
   while(true)
   {
+    Serial.println("Moving the stepper");
     if(stepper.maxSpeed() > 0.0) {
       stepper.moveTo(STEPPER_TARGET_POS);
       stepper.runToPosition();
@@ -912,17 +929,22 @@ void displayWeather(weatherReportObject *weatherReport)
     setWindSpeedFan(weatherReport->windSpeed);
 
     /* Handle precipitation info */
-    digitalWrite(enablePin, LOW);
-    float highestPrecipitation = (weatherReport->rainLevel < weatherReport->snowLevel) ? SNOW_FLAG : RAIN_FLAG;
-    if(highestPrecipitation > 0.0) { //Only if there is any precipitation bother with the stepper task
+    if((weatherReport->rainLevel > 0.0001f) || (weatherReport->snowLevel > 0.0001f)) { //Small value to negate float weirdness
+      float highestPrecipitation = (weatherReport->rainLevel < weatherReport->snowLevel) ? SNOW_FLAG : RAIN_FLAG;
       if(highestPrecipitation == RAIN_FLAG) setStepperSpeed(weatherReport->rainLevel, MAX_RAIN_HOURLY);
       else if(highestPrecipitation == SNOW_FLAG) setStepperSpeed(weatherReport->snowLevel, MAX_SNOW_HOURLY);
+      #ifdef DEBUG
+        Serial.println("Starting the stepper task");
+      #endif
       digitalWrite(enablePin, LOW);
       vTaskResume(stepperTask);
     }
     else {
       stepper.setMaxSpeed(0);
+      digitalWrite(enablePin, HIGH);
+      vTaskSuspend(stepperTask);
     }
+
 
     /* Handle slipperiness */
     if (!setSlipperinessServo(weatherReport->weatherID)) 

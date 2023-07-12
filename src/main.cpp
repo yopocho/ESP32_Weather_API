@@ -160,23 +160,20 @@ void setup()
 void loop() 
 {
   /* MAIN LOOP */
-  if(WiFi.status() == WL_CONNECTED) setStatusLED(CRGB::Green);
+  if(WiFi.status() == WL_CONNECTED) 
+  {
+    #ifdef DEBUG
+      Serial.println("Wifi connection established, setting LED to green");
+    #endif
+    setStatusLED(CRGB::Green);
+  }
   while(WiFi.status() == WL_CONNECTED)
   {
-    if(weatherStation.measuredTemp <= (MIN_PELTIER_TEMP - 5.0) || weatherStation.measuredTemp >= MAX_PELTIER_TEMP + 8.0) {
-      setStatusLED(CRGB::Red);
-      flagUpcomingWeather = false;
-      flagCurrentWeather = false;
-      flagTrainingWeather = false;
-      flagFault = true;
-      break;
-    }
-
     /* Handle updating current weather report */
     if(APITimeout(weatherStation.APITimeout)) updateWeatherReports();
 
     /* Handle updating temperature reading */
-    if(tempTimeout(TEMP_TIMEOUT)) updateTemperature();
+    if(tempTimeout(TEMP_TIMEOUT)) if(!updateTemperature()) break;
 
     /* Update relevant flags */
     if(digitalRead(buttonCurrentWeather) && !(digitalRead(buttonUpcomingWeather))) 
@@ -188,9 +185,11 @@ void loop()
       flagTrainingWeather = false;
       doOnceFlag = true;
       setStatusLED(CRGB::DarkOrange);
+
       /* Disable precipitation stepper */
       digitalWrite(enablePin, HIGH);
       vTaskSuspend(stepperTask);
+
       displayTimeoutCharacteristic.writeValue("0");
       digitalWrite(motorEnable, HIGH);
     }
@@ -208,6 +207,7 @@ void loop()
       /* Disable precipitation stepper */
       digitalWrite(enablePin, HIGH);
       vTaskSuspend(stepperTask);
+      
       displayTimeoutCharacteristic.writeValue("0");
       digitalWrite(motorEnable, HIGH);
     }
@@ -222,7 +222,9 @@ void loop()
     else idle();
   }
 
+  /* Hardlocking the weatherstation in case of serious issue(s) */
   while(flagFault) {
+    setStatusLED(CRGB::Red);
     Serial.println("Dangerous fault detected, blocking use of weatherstation!");
     delay(1000);
   }
@@ -233,7 +235,7 @@ void loop()
   }
 
   /* Temperature handling */
-  if(tempTimeout(TEMP_TIMEOUT)) updateTemperature();
+  if(tempTimeout(TEMP_TIMEOUT)) (void)updateTemperature();
 
   /* Handle BLE */
   BLE.poll();
